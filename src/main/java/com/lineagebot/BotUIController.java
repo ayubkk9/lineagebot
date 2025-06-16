@@ -12,6 +12,7 @@ import javafx.fxml.FXML;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -26,6 +27,8 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Popup;
 import javafx.stage.Stage;
+import javafx.geometry.Rectangle2D;
+import javafx.stage.Screen;
 import org.json.JSONObject;
 
 import java.awt.*;
@@ -40,33 +43,34 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class BotUIController {
-    @FXML private ComboBox<String> characterComboBox;
-    @FXML private Button refreshCharactersButton;
-    @FXML private Button activateWindowButton;
-    @FXML private TextField hpDisplayField;
-    @FXML private TextField mpDisplayField;
-    @FXML private TextField hpPercentField;
-    @FXML private TextField mpPercentField;
-    @FXML private TextField hpBarField;
-    @FXML private TextField mpBarField;
-    @FXML private TextField mobHpBarField;
-    @FXML private ComboBox<String> arduinoPortComboBox;
-    @FXML private TableView<Action> actionsTable;
-    @FXML private TableColumn<Action, String> actionTypeColumn;
-    @FXML private TableColumn<Action, String> keysColumn;
-    @FXML private ComboBox<String> actionTypeComboBox;
-    @FXML private TextField keysField;
-    @FXML private Button addActionButton;
-    @FXML private Button editActionButton;
-    @FXML private Button deleteActionButton;
-    @FXML private Button startButton;
-    @FXML private Button stopButton;
-    @FXML private TextArea logArea;
-    @FXML private Button selectMobHpBarButton;
-    @FXML private Button selectHpBarButton;
-    @FXML private Button selectMpBarButton;
-    @FXML private Button saveSettingsButton;
-    @FXML private Button loadSettingsButton;
+    @FXML private javafx.scene.control.TextField characterNameField;
+    @FXML private javafx.scene.control.ComboBox<String> characterComboBox;
+    @FXML private javafx.scene.control.Button refreshCharactersButton;
+    @FXML private javafx.scene.control.Button activateWindowButton;
+    @FXML private javafx.scene.control.TextField hpDisplayField;
+    @FXML private javafx.scene.control.TextField mpDisplayField;
+    @FXML private javafx.scene.control.TextField hpPercentField;
+    @FXML private javafx.scene.control.TextField mpPercentField;
+    @FXML private javafx.scene.control.TextField hpBarField;
+    @FXML private javafx.scene.control.TextField mpBarField;
+    @FXML private javafx.scene.control.TextField mobHpBarField;
+    @FXML private javafx.scene.control.ComboBox<String> arduinoPortComboBox;
+    @FXML private javafx.scene.control.TableView<Action> actionsTable;
+    @FXML private javafx.scene.control.TableColumn<Action, String> actionTypeColumn;
+    @FXML private javafx.scene.control.TableColumn<Action, String> keysColumn;
+    @FXML private javafx.scene.control.ComboBox<String> actionTypeComboBox;
+    @FXML private javafx.scene.control.TextField keysField;
+    @FXML private javafx.scene.control.Button addActionButton;
+    @FXML private javafx.scene.control.Button editActionButton;
+    @FXML private javafx.scene.control.Button deleteActionButton;
+    @FXML private javafx.scene.control.Button startButton;
+    @FXML private javafx.scene.control.Button stopButton;
+    @FXML private javafx.scene.control.TextArea logArea;
+    @FXML private javafx.scene.control.Button selectMobHpBarButton;
+    @FXML private javafx.scene.control.Button selectHpBarButton;
+    @FXML private javafx.scene.control.Button selectMpBarButton;
+    @FXML private javafx.scene.control.Button saveSettingsButton;
+    @FXML private javafx.scene.control.Button loadSettingsButton;
 
     private BotController botController;
     private Thread hpMpUpdateThread;
@@ -77,40 +81,6 @@ public class BotUIController {
 
     public void setPrimaryStage(Stage stage) {
         this.primaryStage = stage;
-    }
-
-    public static class Action {
-        private final SimpleStringProperty actionType;
-        private final SimpleStringProperty keys;
-
-        public Action(String actionType, String keys) {
-            this.actionType = new SimpleStringProperty(actionType);
-            this.keys = new SimpleStringProperty(keys);
-        }
-
-        public String getActionType() {
-            return actionType.get();
-        }
-
-        public String getKeys() {
-            return keys.get();
-        }
-
-        public void setActionType(String actionType) {
-            this.actionType.set(actionType);
-        }
-
-        public void setKeys(String keys) {
-            this.keys.set(keys);
-        }
-
-        public SimpleStringProperty actionTypeProperty() {
-            return actionType;
-        }
-
-        public SimpleStringProperty keysProperty() {
-            return keys;
-        }
     }
 
     @FXML
@@ -125,7 +95,7 @@ public class BotUIController {
         hpBarField.setText("50,50,100,10");
         mpBarField.setText("50,80,100,10");
         mobHpBarField.setText("200,100,50,10");
-        refreshCharacters();
+
         SerialPort[] ports = SerialPort.getCommPorts();
         for (SerialPort port : ports) {
             arduinoPortComboBox.getItems().add(port.getSystemPortName());
@@ -145,6 +115,11 @@ public class BotUIController {
         validatePercentField(mpPercentField);
         limitLogArea();
         setupHotKeys();
+
+        characterComboBox.setVisible(true);
+        refreshCharactersButton.setVisible(true);
+
+        characterComboBox.setStyle("-fx-font-size: 12px; -fx-pref-width: 250px;");
     }
 
     private void setupHotKeys() {
@@ -160,7 +135,7 @@ public class BotUIController {
         }
     }
 
-    private void validatePercentField(TextField field) {
+    private void validatePercentField(javafx.scene.control.TextField field) {
         field.textProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal.isEmpty()) {
                 try {
@@ -232,13 +207,72 @@ public class BotUIController {
     }
 
     @FXML
+    private void detectGameWindow() {
+        String nickname = characterNameField.getText().trim();
+        if (nickname.isEmpty()) {
+            log("❌ Введите ник персонажа!");
+            return;
+        }
+
+        List<String> gameWindows = new ArrayList<>();
+        User32.INSTANCE.EnumWindows((hWnd, arg) -> {
+            char[] windowText = new char[512];
+            User32.INSTANCE.GetWindowText(hWnd, windowText, 512);
+            String title = new String(windowText).trim();
+
+            if (title.contains(nickname)) {
+                char[] className = new char[256];
+                User32.INSTANCE.GetClassName(hWnd, className, 256);
+                String windowClass = new String(className).trim();
+
+                if (windowClass.equals("UnrealWindow") ||
+                        windowClass.equals("Lineage") ||
+                        title.matches(nickname + ".*")) {
+                    gameWindows.add(title);
+                }
+            }
+            return true;
+        }, null);
+
+        if (!gameWindows.isEmpty()) {
+            characterComboBox.getItems().setAll(gameWindows);
+            characterComboBox.getSelectionModel().selectFirst();
+            log("✅ Окно игры найдено: " + gameWindows.get(0));
+
+            // Всегда показываем ComboBox после успешного поиска
+            characterComboBox.setVisible(true);
+            refreshCharactersButton.setVisible(true);
+
+            activateWindow();
+        } else {
+            log("❌ Не найдено окно с ником '" + nickname + "'");
+            // Показываем ручной выбор
+            characterComboBox.setVisible(true);
+            refreshCharactersButton.setVisible(true);
+            refreshCharacters();
+        }
+    }
+
+    private boolean isGameWindow(WinDef.HWND hWnd, String title) {
+        char[] className = new char[256];
+        User32.INSTANCE.GetClassName(hWnd, className, 256);
+        String windowClass = new String(className).trim();
+
+        return windowClass.equals("UnrealWindow") ||
+                windowClass.equals("Lineage") ||
+                // Дополнительные проверки для современных клиентов
+                (windowClass.startsWith("WindowsForms") && title.matches(".*[A-Za-z0-9_]{3,16}.*"));
+    }
+
+    @FXML
     private void refreshCharacters() {
         characterComboBox.getItems().clear();
         User32.INSTANCE.EnumWindows((hWnd, arg) -> {
             char[] windowText = new char[512];
             User32.INSTANCE.GetWindowText(hWnd, windowText, 512);
             String title = new String(windowText).trim();
-            if (!title.isEmpty()) {
+
+            if (!title.isEmpty() && isGameWindow(hWnd, title)) {
                 Platform.runLater(() -> {
                     if (!characterComboBox.getItems().contains(title)) {
                         characterComboBox.getItems().add(title);
@@ -247,30 +281,25 @@ public class BotUIController {
             }
             return true;
         }, null);
+
         Platform.runLater(() -> {
             if (!characterComboBox.getItems().isEmpty()) {
                 characterComboBox.getSelectionModel().selectFirst();
-            } else if (botController != null) {
-                botController.log("Окна Lineage 2 не найдены. Убедитесь, что игра запущена.");
+            } else {
+                log("Окна Lineage 2 не найдены. Убедитесь, что игра запущена.");
             }
         });
     }
 
     @FXML
     private void activateWindow() {
-        String selectedCharacter = characterComboBox.getSelectionModel().getSelectedItem();
-        if (selectedCharacter != null) {
-            WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, selectedCharacter);
+        String selectedWindow = characterComboBox.getSelectionModel().getSelectedItem();
+        if (selectedWindow != null) {
+            WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, selectedWindow);
             if (hWnd != null) {
                 User32.INSTANCE.SetForegroundWindow(hWnd);
-                if (botController != null) {
-                    botController.log("Активировано окно: " + selectedCharacter);
-                }
-            } else if (botController != null) {
-                botController.log("Окно " + selectedCharacter + " не найдено");
+                log("Активировано окно: " + selectedWindow);
             }
-        } else if (botController != null) {
-            botController.log("Персонаж не выбран");
         }
     }
 
@@ -328,23 +357,20 @@ public class BotUIController {
     @FXML
     private void startBot() {
         try {
-            // Отвязываем лог, если уже привязан
             if (logArea.textProperty().isBound()) {
                 logArea.textProperty().unbind();
             }
 
-            // Проверяем и парсим настройки
             double hpPercent = Double.parseDouble(hpPercentField.getText());
             double mpPercent = Double.parseDouble(mpPercentField.getText());
             String arduinoPort = arduinoPortComboBox.getSelectionModel().getSelectedItem();
             String selectedCharacter = characterComboBox.getSelectionModel().getSelectedItem();
 
             if (arduinoPort == null || selectedCharacter == null) {
-                log("Ошибка: порт Arduino или персонаж не выбраны");
+                log("Ошибка: порт или персонаж не выбраны");
                 return;
             }
 
-            // Парсим координаты полос
             int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
             int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
             int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
@@ -354,38 +380,18 @@ public class BotUIController {
                 return;
             }
 
-            // Создаем и запускаем бота
             botController = new BotController(arduinoPort, hpPercent, mpPercent,
                     selectedCharacter, actions, hpBar, mpBar, mobHpBar);
             botController.startBot();
-
-            // Привязываем лог с защитой от NPE
             logArea.textProperty().bind(botController.logProperty());
-
-            // Обновляем UI
             startButton.setDisable(true);
             stopButton.setDisable(false);
-
-            // Запускаем мониторинг HP/MP
             startHpMpUpdate(selectedCharacter, hpBar, mpBar);
-
-            // Активируем окно игры
             activateWindow();
-
         } catch (NumberFormatException e) {
             log("Ошибка: неверный формат процентов HP/MP");
         } catch (Exception e) {
             log("Ошибка запуска: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    // Вспомогательный метод для логирования
-    private void log(String message) {
-        if (botController != null) {
-            botController.log(message);
-        } else {
-            Platform.runLater(() -> logArea.appendText(message + "\n"));
         }
     }
 
@@ -417,12 +423,14 @@ public class BotUIController {
                 Thread.currentThread().interrupt();
             }
         }
+
         hpMpUpdateThread = new Thread(() -> {
             ScreenReader screenReader = new ScreenReader();
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     double hpLevel = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
                     double mpLevel = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
+
                     Platform.runLater(() -> {
                         hpDisplayField.setText(String.format("%.1f%%", hpLevel * 100));
                         mpDisplayField.setText(String.format("%.1f%%", mpLevel * 100));
@@ -452,13 +460,16 @@ public class BotUIController {
             int y = Integer.parseInt(parts[1].trim());
             int width = Integer.parseInt(parts[2].trim());
             int height = Integer.parseInt(parts[3].trim());
+
             if (width <= 0 || height <= 0) {
                 throw new IllegalArgumentException("Ширина и высота должны быть положительными");
             }
-            java.awt.Rectangle screen = new java.awt.Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
-            if (x < 0 || y < 0 || x + width > screen.width || y + height > screen.height) {
+
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            if (x < 0 || y < 0 || x + width > screenSize.width || y + height > screenSize.height) {
                 throw new IllegalArgumentException("Координаты выходят за пределы экрана");
             }
+
             return new int[]{x, y, width, height};
         } catch (Exception e) {
             if (botController != null) {
@@ -468,23 +479,15 @@ public class BotUIController {
         }
     }
 
-    private void selectBar(TextField targetField, String barName) {
-        if (botController != null) {
-            botController.log("Нажмите левую кнопку мыши на начало полосы " + barName + " в игре, затем правую для завершения.");
-        }
-        if (targetField == null) {
-            if (botController != null) {
-                botController.log("Ошибка: поле для " + barName + " не инициализировано.");
-            }
-            return;
-        }
-        activateWindow();
+    private void selectBar(javafx.scene.control.TextField targetField, String barName) {
+        log("Нажмите левую кнопку мыши на начало полосы " + barName + ", затем правую для завершения.");
+
         Popup popup = new Popup();
         Pane pane = new Pane();
         pane.setStyle("-fx-background-color: rgba(0, 0, 255, 0.1);");
         popup.getContent().add(pane);
 
-        javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
+        Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
         pane.setPrefSize(screenBounds.getWidth(), screenBounds.getHeight());
         popup.setX(screenBounds.getMinX());
         popup.setY(screenBounds.getMinY());
@@ -507,12 +510,10 @@ public class BotUIController {
             javafx.event.EventHandler<javafx.scene.input.MouseEvent> mouseHandler = event -> {
                 if (!selecting.get()) return;
 
-                Point currentPoint = java.awt.MouseInfo.getPointerInfo().getLocation();
+                Point currentPoint = MouseInfo.getPointerInfo().getLocation();
                 if (event.getButton() == MouseButton.PRIMARY && startPoint.get() == null) {
                     startPoint.set(currentPoint);
-                    if (botController != null) {
-                        botController.log("Начало полосы " + barName + " выбрано: " + currentPoint.x + "," + currentPoint.y);
-                    }
+                    log("Начало полосы " + barName + " выбрано: " + currentPoint.x + "," + currentPoint.y);
                 } else if (event.getButton() == MouseButton.SECONDARY && startPoint.get() != null) {
                     endPoint.set(currentPoint);
                     selecting.set(false);
@@ -528,9 +529,7 @@ public class BotUIController {
                     if (width <= 0) width = 1;
                     if (height <= 0) height = 1;
                     targetField.setText(x + "," + y + "," + width + "," + height);
-                    if (botController != null) {
-                        botController.log("Полоса " + barName + " выбрана: " + x + "," + y + "," + width + "," + height);
-                    }
+                    log("Полоса " + barName + " выбрана: " + x + "," + y + "," + width + "," + height);
                     Platform.runLater(() -> primaryStage.requestFocus());
                 }
                 pane.requestLayout();
@@ -540,7 +539,7 @@ public class BotUIController {
             pane.setOnMouseReleased(mouseHandler);
             pane.setOnMouseDragged(event -> {
                 if (selecting.get() && startPoint.get() != null) {
-                    endPoint.set(java.awt.MouseInfo.getPointerInfo().getLocation());
+                    endPoint.set(MouseInfo.getPointerInfo().getLocation());
                     Point sp = startPoint.get();
                     Point ep = endPoint.get();
                     int x = Math.min(sp.x, ep.x) - 50;
@@ -555,50 +554,23 @@ public class BotUIController {
                 }
             });
 
-            pane.layoutBoundsProperty().addListener((obs, oldVal, newVal) -> {
-                Rectangle rect = new Rectangle();
-                rect.setFill(javafx.scene.paint.Color.TRANSPARENT);
-                rect.setStroke(javafx.scene.paint.Color.RED);
-                rect.setStrokeWidth(2);
-                Point sp = startPoint.get();
-                Point ep = endPoint.get();
-                if (sp != null && ep != null) {
-                    rect.setX(sp.x - screenBounds.getMinX());
-                    rect.setY(sp.y - screenBounds.getMinY());
-                    rect.setWidth(ep.x - sp.x);
-                    rect.setHeight(ep.y - sp.y);
-                } else if (sp != null) {
-                    ep = java.awt.MouseInfo.getPointerInfo().getLocation();
-                    rect.setX(sp.x - screenBounds.getMinX());
-                    rect.setY(sp.y - screenBounds.getMinY());
-                    rect.setWidth(ep.x - sp.x);
-                    rect.setHeight(ep.y - sp.y);
-                }
-                if (rect.getWidth() > 0 && rect.getHeight() > 0) {
-                    pane.getChildren().clear();
-                    pane.getChildren().add(rect);
-                }
-            });
-
-            popup.show((Stage) characterComboBox.getScene().getWindow());
-        } catch (java.awt.AWTException e) {
-            if (botController != null) {
-                botController.log("Ошибка инициализации Robot: " + e.getMessage());
-            }
+            popup.show(primaryStage);
+        } catch (AWTException e) {
+            log("Ошибка инициализации Robot: " + e.getMessage());
         }
     }
 
-    @FXML private void selectMobHpBar() { selectBar(mobHpBarField, "HP моба"); }
-    @FXML private void selectHpBar() { selectBar(hpBarField, "HP персонажа"); }
-    @FXML private void selectMpBar() { selectBar(mpBarField, "MP персонажа"); }
-
-    public ObservableList<Action> getActions() {
-        return actions;
-    }
+    @FXML
+    private void selectMobHpBar() { selectBar(mobHpBarField, "HP моба"); }
+    @FXML
+    private void selectHpBar() { selectBar(hpBarField, "HP персонажа"); }
+    @FXML
+    private void selectMpBar() { selectBar(mpBarField, "MP персонажа"); }
 
     @FXML
     private void saveSettings() {
         JSONObject settings = new JSONObject();
+        settings.put("characterName", characterNameField.getText());
         settings.put("hpPercent", hpPercentField.getText());
         settings.put("mpPercent", mpPercentField.getText());
         settings.put("hpBar", hpBarField.getText());
@@ -606,6 +578,7 @@ public class BotUIController {
         settings.put("mobHpBar", mobHpBarField.getText());
         settings.put("arduinoPort", arduinoPortComboBox.getSelectionModel().getSelectedItem());
         settings.put("character", characterComboBox.getSelectionModel().getSelectedItem());
+
         JSONObject actionsJson = new JSONObject();
         for (Action action : actions) {
             actionsJson.put(action.getActionType(), action.getKeys());
@@ -614,13 +587,9 @@ public class BotUIController {
 
         try (FileWriter file = new FileWriter("settings.json")) {
             file.write(settings.toString(4));
-            if (botController != null) {
-                botController.log("Настройки сохранены в settings.json");
-            }
+            log("Настройки сохранены в settings.json");
         } catch (IOException e) {
-            if (botController != null) {
-                botController.log("Ошибка сохранения настроек: " + e.getMessage());
-            }
+            log("Ошибка сохранения настроек: " + e.getMessage());
         }
     }
 
@@ -630,13 +599,18 @@ public class BotUIController {
             String content = new String(Files.readAllBytes(Paths.get("settings.json")));
             JSONObject settings = new JSONObject(content);
 
+            characterNameField.setText(settings.optString("characterName", ""));
             hpPercentField.setText(settings.getString("hpPercent"));
             mpPercentField.setText(settings.getString("mpPercent"));
             hpBarField.setText(settings.getString("hpBar"));
             mpBarField.setText(settings.getString("mpBar"));
             mobHpBarField.setText(settings.getString("mobHpBar"));
             arduinoPortComboBox.getSelectionModel().select(settings.getString("arduinoPort"));
-            characterComboBox.getSelectionModel().select(settings.getString("character"));
+
+            if (!settings.getString("character").isEmpty()) {
+                characterComboBox.getItems().add(settings.getString("character"));
+                characterComboBox.getSelectionModel().selectFirst();
+            }
 
             actions.clear();
             JSONObject actionsJson = settings.getJSONObject("actions");
@@ -646,13 +620,51 @@ public class BotUIController {
                 }
             }
 
-            if (botController != null) {
-                botController.log("Настройки загружены из settings.json");
-            }
+            log("Настройки загружены из settings.json");
         } catch (IOException e) {
-            if (botController != null) {
-                botController.log("Ошибка загрузки настроек: файл settings.json не найден");
-            }
+            log("Ошибка загрузки настроек: файл settings.json не найден");
+        }
+    }
+
+    private void log(String message) {
+        if (botController != null) {
+            botController.log(message);
+        } else {
+            Platform.runLater(() -> logArea.appendText(message + "\n"));
+        }
+    }
+
+    public static class Action {
+        private final SimpleStringProperty actionType;
+        private final SimpleStringProperty keys;
+
+        public Action(String actionType, String keys) {
+            this.actionType = new SimpleStringProperty(actionType);
+            this.keys = new SimpleStringProperty(keys);
+        }
+
+        public String getActionType() {
+            return actionType.get();
+        }
+
+        public String getKeys() {
+            return keys.get();
+        }
+
+        public void setActionType(String actionType) {
+            this.actionType.set(actionType);
+        }
+
+        public void setKeys(String keys) {
+            this.keys.set(keys);
+        }
+
+        public SimpleStringProperty actionTypeProperty() {
+            return actionType;
+        }
+
+        public SimpleStringProperty keysProperty() {
+            return keys;
         }
     }
 }

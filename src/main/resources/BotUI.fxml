@@ -4,32 +4,37 @@
 
 <BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController" stylesheets="@styles.css">
     <center>
-        <VBox spacing="10" alignment="CENTER" styleClass="main-pane">
-            <HBox spacing="10" alignment="CENTER">
+        <VBox spacing="10" alignment="CENTER_LEFT" styleClass="main-pane">
+            <HBox spacing="10" alignment="CENTER_LEFT">
                 <Label text="Окно игры:" styleClass="label"/>
-                <ComboBox fx:id="characterComboBox" prefWidth="200"/>
+                <ComboBox fx:id="characterComboBox" prefWidth="120"/>
                 <Button fx:id="refreshCharactersButton" text="Обновить" onAction="#refreshCharacters" styleClass="button"/>
                 <Button fx:id="activateWindowButton" text="Активировать" onAction="#activateWindow" styleClass="button"/>
             </HBox>
-            <HBox spacing="10" alignment="CENTER">
-                <Label text="HP:" styleClass="label"/>
-                <TextField fx:id="hpDisplayField" editable="false" prefWidth="80"/>
-                <Label text="MP:" styleClass="label"/>
-                <TextField fx:id="mpDisplayField" editable="false" prefWidth="80"/>
-                <Label text="HP%:" styleClass="label"/>
-                <TextField fx:id="hpPercentField" promptText="0-100" prefWidth="60" styleClass="numeric-field"/>
-                <Label text="MP%:" styleClass="label"/>
-                <TextField fx:id="mpPercentField" promptText="0-100" prefWidth="60" styleClass="numeric-field"/>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Ник персонажа:"/>
+                <TextField fx:id="characterNameField" promptText="Введите ник" prefWidth="215"/>
+                <Button text="Найти окно" onAction="#detectGameWindow"/>
             </HBox>
-            <HBox spacing="10" alignment="CENTER">
-                <Label text="HP Bar:" styleClass="label"/>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="HP:" styleClass="label"/>
+                <TextField fx:id="hpDisplayField" editable="false" prefWidth="84"/>
+                <Label text="MP:" styleClass="label"/>
+                <TextField fx:id="mpDisplayField" editable="false" prefWidth="84"/>
+                <Label text="HP%:" styleClass="label"/>
+                <TextField fx:id="hpPercentField" promptText="0-100" prefWidth="84" styleClass="numeric-field"/>
+                <Label text="MP%:" styleClass="label"/>
+                <TextField fx:id="mpPercentField" promptText="0-100" prefWidth="84" styleClass="numeric-field"/>
+            </HBox>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Char HP Bar:" styleClass="label"/>
                 <TextField fx:id="hpBarField" promptText="x,y,width,height" prefWidth="120"/>
                 <Button fx:id="selectHpBarButton" text="Выбрать" onAction="#selectHpBar" styleClass="button"/>
                 <Label text="MP Bar:" styleClass="label"/>
                 <TextField fx:id="mpBarField" promptText="x,y,width,height" prefWidth="120"/>
                 <Button fx:id="selectMpBarButton" text="Выбрать" onAction="#selectMpBar" styleClass="button"/>
             </HBox>
-            <HBox spacing="10" alignment="CENTER">
+            <HBox spacing="10" alignment="CENTER_LEFT">
                 <Label text="Mob HP Bar:" styleClass="label"/>
                 <TextField fx:id="mobHpBarField" promptText="x,y,width,height" prefWidth="120"/>
                 <Button fx:id="selectMobHpBarButton" text="Выбрать" onAction="#selectMobHpBar" styleClass="button"/>
