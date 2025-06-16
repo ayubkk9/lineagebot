@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
+    <center>
+        <VBox spacing="10" alignment="center">
+            <HBox spacing="10">
+                <Label text="Персонаж:" />
+                <ComboBox fx:id="characterComboBox" />
+                <Button fx:id="refreshCharactersButton" text="Обновить" onAction="#refreshCharacters" />
+                <Button fx:id="activateWindowButton" text="Активировать" onAction="#activateWindow" />
+            </HBox>
+            <HBox spacing="10">
+                <Label text="HP:" />
+                <TextField fx:id="hpDisplayField" editable="false" />
+                <Label text="MP:" />
+                <TextField fx:id="mpDisplayField" editable="false" />
+                <Label text="HP%:" />
+                <TextField fx:id="hpPercentField" />
+                <Label text="MP%:" />
+                <TextField fx:id="mpPercentField" />
+            </HBox>
+            <HBox spacing="10">
+                <Label text="HP Bar:" />
+                <TextField fx:id="hpBarField" />
+                <Button fx:id="selectHpBarButton" text="Выбрать" onAction="#selectHpBar" />
+                <Label text="MP Bar:" />
+                <TextField fx:id="mpBarField" />
+                <Button fx:id="selectMpBarButton" text="Выбрать" onAction="#selectMpBar" />
+                <Label text="Mob HP Bar:" />
+                <TextField fx:id="mobHpBarField" />
+                <Button fx:id="selectMobHpBarButton" text="Выбрать" onAction="#selectMobHpBar" />
+            </HBox>
+            <HBox spacing="10">
+                <Label text="Порт Arduino:" />
+                <ComboBox fx:id="arduinoPortComboBox" />
+            </HBox>
+            <VBox spacing="10">
+                <Label text="Действия:" />
+                <TableView fx:id="actionsTable">
+                    <columns>
+                        <TableColumn fx:id="actionTypeColumn" text="Тип действия" />
+                        <TableColumn fx:id="keysColumn" text="Клавиши" />
+                    </columns>
+                </TableView>
+                <HBox spacing="10">
+                    <ComboBox fx:id="actionTypeComboBox" />
+                    <TextField fx:id="keysField" />
+                    <Button fx:id="addActionButton" text="Добавить" onAction="#addAction" />
+                    <Button fx:id="editActionButton" text="Редактировать" onAction="#editAction" />
+                    <Button fx:id="deleteActionButton" text="Удалить" onAction="#deleteAction" />
+                </HBox>
+            </VBox>
+            <HBox spacing="10">
+                <Button fx:id="startButton" text="Старт" onAction="#startBot" />
+                <Button fx:id="stopButton" text="Стоп" onAction="#stopBot" />
+                <Button fx:id="saveSettingsButton" text="Сохранить настройки" onAction="#saveSettings" />
+                <Button fx:id="loadSettingsButton" text="Загрузить настройки" onAction="#loadSettings" />
+            </HBox>
+            <TextArea fx:id="logArea" editable="false" />
+        </VBox>
+    </center>
+</BorderPane>
