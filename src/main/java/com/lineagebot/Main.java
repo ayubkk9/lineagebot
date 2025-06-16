@@ -2,21 +2,30 @@ package com.lineagebot;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import org.bytedeco.javacpp.Loader;
+
+import java.io.IOException;
 
 public class Main extends Application {
 
     @Override
-    public void start(Stage primaryStage) throws Exception {
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/BotUI.fxml"));
-        Parent root = loader.load();
-        BotUIController controller = loader.getController();
-        controller.setPrimaryStage(primaryStage);
+    public void start(Stage primaryStage) throws IOException {
+        // Предварительная загрузка OpenCV и OpenBLAS
+        Loader.load(org.bytedeco.opencv.global.opencv_core.class);
+        Loader.load(org.bytedeco.openblas.global.openblas_nolapack.class);
 
+        // Убедитесь, что путь начинается с "/" для ресурсов
+        FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("/BotUI.fxml"));
+        if (fxmlLoader.getLocation() == null) {
+            throw new IOException("Не удалось найти BotUI.fxml в ресурсах");
+        }
+        Scene scene = new Scene(fxmlLoader.load(), 800, 600);
+        BotUIController controller = fxmlLoader.getController();
+        controller.setPrimaryStage(primaryStage);
         primaryStage.setTitle("Lineage Bot");
-        primaryStage.setScene(new Scene(root, 800, 600));
+        primaryStage.setScene(scene);
         primaryStage.show();
     }
 

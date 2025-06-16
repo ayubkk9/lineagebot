@@ -9,19 +9,27 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
-import javafx.scene.control.*;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.shape.Rectangle;
+import javafx.stage.Popup;
 import javafx.stage.Stage;
+import org.json.JSONObject;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import org.json.JSONObject;
 
 public class BotUIController {
     @FXML private ComboBox<String> characterComboBox;
@@ -133,6 +140,58 @@ public class BotUIController {
             keysField.setText("");
             keysField.requestFocus();
         });
+
+        validatePercentField(hpPercentField);
+        validatePercentField(mpPercentField);
+        limitLogArea();
+        setupHotKeys();
+    }
+
+    private void setupHotKeys() {
+        Scene scene = characterComboBox.getScene();
+        if (scene != null) {
+            scene.setOnKeyPressed(event -> {
+                if (event.getCode() == KeyCode.F5 && !startButton.isDisabled()) {
+                    startBot();
+                } else if (event.getCode() == KeyCode.F6 && !stopButton.isDisabled()) {
+                    stopBot();
+                }
+            });
+        }
+    }
+
+    private void validatePercentField(TextField field) {
+        field.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal.isEmpty()) {
+                try {
+                    double value = Double.parseDouble(newVal);
+                    if (value < 0 || value > 100) {
+                        Platform.runLater(() -> field.setText(oldVal));
+                        if (botController != null) {
+                            botController.log("Ошибка: процент должен быть от 0 до 100");
+                        }
+                    }
+                } catch (NumberFormatException e) {
+                    Platform.runLater(() -> field.setText(oldVal));
+                    if (botController != null) {
+                        botController.log("Ошибка: введите число");
+                    }
+                }
+            }
+        });
+    }
+
+    private void limitLogArea() {
+        logArea.textProperty().addListener((obs, oldVal, newVal) -> {
+            String[] lines = newVal.split("\n");
+            if (lines.length > 100) {
+                StringBuilder trimmed = new StringBuilder();
+                for (int i = lines.length - 100; i < lines.length; i++) {
+                    trimmed.append(lines[i]).append("\n");
+                }
+                Platform.runLater(() -> logArea.setText(trimmed.toString()));
+            }
+        });
     }
 
     private void handleKeyPress(KeyEvent event) {
@@ -179,7 +238,6 @@ public class BotUIController {
             User32.INSTANCE.GetWindowText(hWnd, windowText, 512);
             String title = new String(windowText).trim();
             if (!title.isEmpty()) {
-                System.out.println("Обнаружено окно: " + title);
                 Platform.runLater(() -> {
                     if (!characterComboBox.getItems().contains(title)) {
                         characterComboBox.getItems().add(title);
@@ -279,15 +337,9 @@ public class BotUIController {
                 }
                 return;
             }
-            if (hpPercent < 0 || hpPercent > 100 || mpPercent < 0 || mpPercent > 100) {
-                if (botController != null) {
-                    botController.log("Ошибка: проценты должны быть от 0 до 100");
-                }
-                return;
-            }
-            int[] hpBar = parseCoordinates(hpBarField.getText());
-            int[] mpBar = parseCoordinates(mpBarField.getText());
-            int[] mobHpBar = parseCoordinates(mobHpBarField.getText());
+            int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
+            int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
+            int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
             if (hpBar == null || mpBar == null || mobHpBar == null) {
                 if (botController != null) {
                     botController.log("Ошибка: неверный формат координат полос");
@@ -300,7 +352,6 @@ public class BotUIController {
             startButton.setDisable(true);
             stopButton.setDisable(false);
             startHpMpUpdate(selectedCharacter, hpBar, mpBar);
-            // Переключение на окно игры после старта
             activateWindow();
         } catch (NumberFormatException e) {
             if (botController != null) {
@@ -323,12 +374,23 @@ public class BotUIController {
         }
         if (hpMpUpdateThread != null) {
             hpMpUpdateThread.interrupt();
+            try {
+                hpMpUpdateThread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            hpMpUpdateThread = null;
         }
     }
 
     private void startHpMpUpdate(String characterWindow, int[] hpBar, int[] mpBar) {
         if (hpMpUpdateThread != null) {
             hpMpUpdateThread.interrupt();
+            try {
+                hpMpUpdateThread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         hpMpUpdateThread = new Thread(() -> {
             ScreenReader screenReader = new ScreenReader();
@@ -337,8 +399,8 @@ public class BotUIController {
                     double hpLevel = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
                     double mpLevel = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
                     Platform.runLater(() -> {
-                        hpDisplayField.setText(hpLevel >= 0 ? String.format("%.1f%%", hpLevel * 100) : "Ошибка");
-                        mpDisplayField.setText(mpLevel >= 0 ? String.format("%.1f%%", mpLevel * 100) : "Ошибка");
+                        hpDisplayField.setText(String.format("%.1f%%", hpLevel * 100));
+                        mpDisplayField.setText(String.format("%.1f%%", mpLevel * 100));
                     });
                     Thread.sleep(2000);
                 } catch (InterruptedException e) {
@@ -355,40 +417,45 @@ public class BotUIController {
         hpMpUpdateThread.start();
     }
 
-    private int[] parseCoordinates(String input) {
+    private int[] parseCoordinates(String input, String fieldName) {
         try {
             String[] parts = input.split(",");
-            if (parts.length == 4) {
-                int x = Integer.parseInt(parts[0].trim());
-                int y = Integer.parseInt(parts[1].trim());
-                int width = Integer.parseInt(parts[2].trim());
-                int height = Integer.parseInt(parts[3].trim());
-                if (width <= 0) width = 1; // Минимальная ширина
-                if (height <= 0) height = 1; // Минимальная высота
-                return new int[]{x, y, width, height};
+            if (parts.length != 4) {
+                throw new IllegalArgumentException("Неверный формат координат: ожидается x,y,width,height");
             }
+            int x = Integer.parseInt(parts[0].trim());
+            int y = Integer.parseInt(parts[1].trim());
+            int width = Integer.parseInt(parts[2].trim());
+            int height = Integer.parseInt(parts[3].trim());
+            if (width <= 0 || height <= 0) {
+                throw new IllegalArgumentException("Ширина и высота должны быть положительными");
+            }
+            java.awt.Rectangle screen = new java.awt.Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
+            if (x < 0 || y < 0 || x + width > screen.width || y + height > screen.height) {
+                throw new IllegalArgumentException("Координаты выходят за пределы экрана");
+            }
+            return new int[]{x, y, width, height};
         } catch (Exception e) {
             if (botController != null) {
-                botController.log("Ошибка парсинга координат: " + e.getMessage());
+                botController.log("Ошибка парсинга координат для " + fieldName + ": " + e.getMessage());
             }
+            return null;
         }
-        return null;
     }
 
-    @FXML
-    private void selectMobHpBar() {
+    private void selectBar(TextField targetField, String barName) {
         if (botController != null) {
-            botController.log("Нажмите левую кнопку мыши на начало полосы HP моба в игре, затем правую для завершения. Выделение будет отображаться с лупой.");
+            botController.log("Нажмите левую кнопку мыши на начало полосы " + barName + " в игре, затем правую для завершения.");
         }
-        if (mobHpBarField == null) {
+        if (targetField == null) {
             if (botController != null) {
-                botController.log("Ошибка: поле mobHpBarField не инициализировано. Проверьте BotUI.fxml.");
+                botController.log("Ошибка: поле для " + barName + " не инициализировано.");
             }
             return;
         }
         activateWindow();
-        javafx.stage.Popup popup = new javafx.stage.Popup();
-        javafx.scene.layout.Pane pane = new javafx.scene.layout.Pane();
+        Popup popup = new Popup();
+        Pane pane = new Pane();
         pane.setStyle("-fx-background-color: rgba(0, 0, 255, 0.1);");
         popup.getContent().add(pane);
 
@@ -403,11 +470,11 @@ public class BotUIController {
             AtomicReference<Point> endPoint = new AtomicReference<>(null);
             AtomicBoolean selecting = new AtomicBoolean(true);
 
-            javafx.stage.Stage zoomStage = new javafx.stage.Stage();
-            javafx.scene.image.ImageView zoomView = new javafx.scene.image.ImageView();
+            Stage zoomStage = new Stage();
+            ImageView zoomView = new ImageView();
             zoomView.setFitWidth(300);
             zoomView.setFitHeight(300);
-            javafx.scene.Scene zoomScene = new javafx.scene.Scene(new javafx.scene.layout.StackPane(zoomView));
+            Scene zoomScene = new Scene(new StackPane(zoomView));
             zoomStage.setScene(zoomScene);
             zoomStage.setTitle("Лупа");
             zoomStage.initOwner(primaryStage);
@@ -419,7 +486,7 @@ public class BotUIController {
                 if (event.getButton() == MouseButton.PRIMARY && startPoint.get() == null) {
                     startPoint.set(currentPoint);
                     if (botController != null) {
-                        botController.log("Начало полосы выбрано: " + currentPoint.x + "," + currentPoint.y);
+                        botController.log("Начало полосы " + barName + " выбрано: " + currentPoint.x + "," + currentPoint.y);
                     }
                 } else if (event.getButton() == MouseButton.SECONDARY && startPoint.get() != null) {
                     endPoint.set(currentPoint);
@@ -435,9 +502,9 @@ public class BotUIController {
                     int height = Math.abs(ep.y - sp.y);
                     if (width <= 0) width = 1;
                     if (height <= 0) height = 1;
-                    mobHpBarField.setText(x + "," + y + "," + width + "," + height);
+                    targetField.setText(x + "," + y + "," + width + "," + height);
                     if (botController != null) {
-                        botController.log("Полоса HP моба выбрана: " + x + "," + y + "," + width + "," + height);
+                        botController.log("Полоса " + barName + " выбрана: " + x + "," + y + "," + width + "," + height);
                     }
                     Platform.runLater(() -> primaryStage.requestFocus());
                 }
@@ -464,273 +531,41 @@ public class BotUIController {
             });
 
             pane.layoutBoundsProperty().addListener((obs, oldVal, newVal) -> {
-                javafx.scene.shape.Rectangle rect = new javafx.scene.shape.Rectangle();
+                Rectangle rect = new Rectangle();
                 rect.setFill(javafx.scene.paint.Color.TRANSPARENT);
                 rect.setStroke(javafx.scene.paint.Color.RED);
                 rect.setStrokeWidth(2);
                 Point sp = startPoint.get();
                 Point ep = endPoint.get();
                 if (sp != null && ep != null) {
-                    rect.setX(sp.getX() - screenBounds.getMinX());
-                    rect.setY(sp.getY() - screenBounds.getMinY());
-                    rect.setWidth(ep.getX() - sp.getX());
-                    rect.setHeight(ep.getY() - sp.getY());
+                    rect.setX(sp.x - screenBounds.getMinX());
+                    rect.setY(sp.y - screenBounds.getMinY());
+                    rect.setWidth(ep.x - sp.x);
+                    rect.setHeight(ep.y - sp.y);
                 } else if (sp != null) {
                     ep = java.awt.MouseInfo.getPointerInfo().getLocation();
-                    rect.setX(sp.getX() - screenBounds.getMinX());
-                    rect.setY(sp.getY() - screenBounds.getMinY());
-                    rect.setWidth(ep.getX() - sp.getX());
-                    rect.setHeight(ep.getY() - sp.getY());
+                    rect.setX(sp.x - screenBounds.getMinX());
+                    rect.setY(sp.y - screenBounds.getMinY());
+                    rect.setWidth(ep.x - sp.x);
+                    rect.setHeight(ep.y - sp.y);
                 }
-                pane.getChildren().clear();
-                pane.getChildren().add(rect);
+                if (rect.getWidth() > 0 && rect.getHeight() > 0) {
+                    pane.getChildren().clear();
+                    pane.getChildren().add(rect);
+                }
             });
 
             popup.show((Stage) characterComboBox.getScene().getWindow());
-        } catch (AWTException e) {
+        } catch (java.awt.AWTException e) {
             if (botController != null) {
                 botController.log("Ошибка инициализации Robot: " + e.getMessage());
             }
         }
     }
 
-    @FXML
-    private void selectHpBar() {
-        if (botController != null) {
-            botController.log("Нажмите левую кнопку мыши на начало полосы HP персонажа в игре, затем правую для завершения. Выделение будет отображаться с лупой.");
-        }
-        if (hpBarField == null) {
-            if (botController != null) {
-                botController.log("Ошибка: поле hpBarField не инициализировано. Проверьте BotUI.fxml.");
-            }
-            return;
-        }
-        activateWindow();
-        javafx.stage.Popup popup = new javafx.stage.Popup();
-        javafx.scene.layout.Pane pane = new javafx.scene.layout.Pane();
-        pane.setStyle("-fx-background-color: rgba(0, 0, 255, 0.1);");
-        popup.getContent().add(pane);
-
-        javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-        pane.setPrefSize(screenBounds.getWidth(), screenBounds.getHeight());
-        popup.setX(screenBounds.getMinX());
-        popup.setY(screenBounds.getMinY());
-
-        try {
-            Robot robot = new Robot();
-            AtomicReference<Point> startPoint = new AtomicReference<>(null);
-            AtomicReference<Point> endPoint = new AtomicReference<>(null);
-            AtomicBoolean selecting = new AtomicBoolean(true);
-
-            javafx.stage.Stage zoomStage = new javafx.stage.Stage();
-            javafx.scene.image.ImageView zoomView = new javafx.scene.image.ImageView();
-            zoomView.setFitWidth(300);
-            zoomView.setFitHeight(300);
-            javafx.scene.Scene zoomScene = new javafx.scene.Scene(new javafx.scene.layout.StackPane(zoomView));
-            zoomStage.setScene(zoomScene);
-            zoomStage.setTitle("Лупа");
-            zoomStage.initOwner(primaryStage);
-
-            javafx.event.EventHandler<javafx.scene.input.MouseEvent> mouseHandler = event -> {
-                if (!selecting.get()) return;
-
-                Point currentPoint = java.awt.MouseInfo.getPointerInfo().getLocation();
-                if (event.getButton() == MouseButton.PRIMARY && startPoint.get() == null) {
-                    startPoint.set(currentPoint);
-                    if (botController != null) {
-                        botController.log("Начало полосы HP выбрано: " + currentPoint.x + "," + currentPoint.y);
-                    }
-                } else if (event.getButton() == MouseButton.SECONDARY && startPoint.get() != null) {
-                    endPoint.set(currentPoint);
-                    selecting.set(false);
-                    popup.hide();
-                    zoomStage.close();
-
-                    Point sp = startPoint.get();
-                    Point ep = endPoint.get();
-                    int x = Math.min(sp.x, ep.x);
-                    int y = Math.min(sp.y, ep.y);
-                    int width = Math.abs(ep.x - sp.x);
-                    int height = Math.abs(ep.y - sp.y);
-                    if (width <= 0) width = 1;
-                    if (height <= 0) height = 1;
-                    hpBarField.setText(x + "," + y + "," + width + "," + height);
-                    if (botController != null) {
-                        botController.log("Полоса HP персонажа выбрана: " + x + "," + y + "," + width + "," + height);
-                    }
-                    Platform.runLater(() -> primaryStage.requestFocus());
-                }
-                pane.requestLayout();
-            };
-
-            pane.setOnMousePressed(mouseHandler);
-            pane.setOnMouseReleased(mouseHandler);
-            pane.setOnMouseDragged(event -> {
-                if (selecting.get() && startPoint.get() != null) {
-                    endPoint.set(java.awt.MouseInfo.getPointerInfo().getLocation());
-                    Point sp = startPoint.get();
-                    Point ep = endPoint.get();
-                    int x = Math.min(sp.x, ep.x) - 50;
-                    int y = Math.min(sp.y, ep.y) - 50;
-                    int width = Math.abs(ep.x - sp.x) + 100;
-                    int height = Math.abs(ep.y - sp.y) + 100;
-                    BufferedImage zoomedImage = robot.createScreenCapture(new java.awt.Rectangle(x, y, width, height));
-                    Image fxImage = SwingFXUtils.toFXImage(zoomedImage, null);
-                    zoomView.setImage(fxImage);
-                    if (!zoomStage.isShowing()) zoomStage.show();
-                    pane.requestLayout();
-                }
-            });
-
-            pane.layoutBoundsProperty().addListener((obs, oldVal, newVal) -> {
-                javafx.scene.shape.Rectangle rect = new javafx.scene.shape.Rectangle();
-                rect.setFill(javafx.scene.paint.Color.TRANSPARENT);
-                rect.setStroke(javafx.scene.paint.Color.RED);
-                rect.setStrokeWidth(2);
-                Point sp = startPoint.get();
-                Point ep = endPoint.get();
-                if (sp != null && ep != null) {
-                    rect.setX(sp.getX() - screenBounds.getMinX());
-                    rect.setY(sp.getY() - screenBounds.getMinY());
-                    rect.setWidth(ep.getX() - sp.getX());
-                    rect.setHeight(ep.getY() - sp.getY());
-                } else if (sp != null) {
-                    ep = java.awt.MouseInfo.getPointerInfo().getLocation();
-                    rect.setX(sp.getX() - screenBounds.getMinX());
-                    rect.setY(sp.getY() - screenBounds.getMinY());
-                    rect.setWidth(ep.getX() - sp.getX());
-                    rect.setHeight(ep.getY() - sp.getY());
-                }
-                pane.getChildren().clear();
-                pane.getChildren().add(rect);
-            });
-
-            popup.show((Stage) characterComboBox.getScene().getWindow());
-        } catch (AWTException e) {
-            if (botController != null) {
-                botController.log("Ошибка инициализации Robot: " + e.getMessage());
-            }
-        }
-    }
-
-    @FXML
-    private void selectMpBar() {
-        if (botController != null) {
-            botController.log("Нажмите левую кнопку мыши на начало полосы MP персонажа в игре, затем правую для завершения. Выделение будет отображаться с лупой.");
-        }
-        if (mpBarField == null) {
-            if (botController != null) {
-                botController.log("Ошибка: поле mpBarField не инициализировано. Проверьте BotUI.fxml.");
-            }
-            return;
-        }
-        activateWindow();
-        javafx.stage.Popup popup = new javafx.stage.Popup();
-        javafx.scene.layout.Pane pane = new javafx.scene.layout.Pane();
-        pane.setStyle("-fx-background-color: rgba(0, 0, 255, 0.1);");
-        popup.getContent().add(pane);
-
-        javafx.geometry.Rectangle2D screenBounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-        pane.setPrefSize(screenBounds.getWidth(), screenBounds.getHeight());
-        popup.setX(screenBounds.getMinX());
-        popup.setY(screenBounds.getMinY());
-
-        try {
-            Robot robot = new Robot();
-            AtomicReference<Point> startPoint = new AtomicReference<>(null);
-            AtomicReference<Point> endPoint = new AtomicReference<>(null);
-            AtomicBoolean selecting = new AtomicBoolean(true);
-
-            javafx.stage.Stage zoomStage = new javafx.stage.Stage();
-            javafx.scene.image.ImageView zoomView = new javafx.scene.image.ImageView();
-            zoomView.setFitWidth(300);
-            zoomView.setFitHeight(300);
-            javafx.scene.Scene zoomScene = new javafx.scene.Scene(new javafx.scene.layout.StackPane(zoomView));
-            zoomStage.setScene(zoomScene);
-            zoomStage.setTitle("Лупа");
-            zoomStage.initOwner(primaryStage);
-
-            javafx.event.EventHandler<javafx.scene.input.MouseEvent> mouseHandler = event -> {
-                if (!selecting.get()) return;
-
-                Point currentPoint = java.awt.MouseInfo.getPointerInfo().getLocation();
-                if (event.getButton() == MouseButton.PRIMARY && startPoint.get() == null) {
-                    startPoint.set(currentPoint);
-                    if (botController != null) {
-                        botController.log("Начало полосы MP выбрано: " + currentPoint.x + "," + currentPoint.y);
-                    }
-                } else if (event.getButton() == MouseButton.SECONDARY && startPoint.get() != null) {
-                    endPoint.set(currentPoint);
-                    selecting.set(false);
-                    popup.hide();
-                    zoomStage.close();
-
-                    Point sp = startPoint.get();
-                    Point ep = endPoint.get();
-                    int x = Math.min(sp.x, ep.x);
-                    int y = Math.min(sp.y, ep.y);
-                    int width = Math.abs(ep.x - sp.x);
-                    int height = Math.abs(ep.y - sp.y);
-                    if (width <= 0) width = 1;
-                    if (height <= 0) height = 1;
-                    mpBarField.setText(x + "," + y + "," + width + "," + height);
-                    if (botController != null) {
-                        botController.log("Полоса MP персонажа выбрана: " + x + "," + y + "," + width + "," + height);
-                    }
-                    Platform.runLater(() -> primaryStage.requestFocus());
-                }
-                pane.requestLayout();
-            };
-
-            pane.setOnMousePressed(mouseHandler);
-            pane.setOnMouseReleased(mouseHandler);
-            pane.setOnMouseDragged(event -> {
-                if (selecting.get() && startPoint.get() != null) {
-                    endPoint.set(java.awt.MouseInfo.getPointerInfo().getLocation());
-                    Point sp = startPoint.get();
-                    Point ep = endPoint.get();
-                    int x = Math.min(sp.x, ep.x) - 50;
-                    int y = Math.min(sp.y, ep.y) - 50;
-                    int width = Math.abs(ep.x - sp.x) + 100;
-                    int height = Math.abs(ep.y - sp.y) + 100;
-                    BufferedImage zoomedImage = robot.createScreenCapture(new java.awt.Rectangle(x, y, width, height));
-                    Image fxImage = SwingFXUtils.toFXImage(zoomedImage, null);
-                    zoomView.setImage(fxImage);
-                    if (!zoomStage.isShowing()) zoomStage.show();
-                    pane.requestLayout();
-                }
-            });
-
-            pane.layoutBoundsProperty().addListener((obs, oldVal, newVal) -> {
-                javafx.scene.shape.Rectangle rect = new javafx.scene.shape.Rectangle();
-                rect.setFill(javafx.scene.paint.Color.TRANSPARENT);
-                rect.setStroke(javafx.scene.paint.Color.RED);
-                rect.setStrokeWidth(2);
-                Point sp = startPoint.get();
-                Point ep = endPoint.get();
-                if (sp != null && ep != null) {
-                    rect.setX(sp.getX() - screenBounds.getMinX());
-                    rect.setY(sp.getY() - screenBounds.getMinY());
-                    rect.setWidth(ep.getX() - sp.getX());
-                    rect.setHeight(ep.getY() - sp.getY());
-                } else if (sp != null) {
-                    ep = java.awt.MouseInfo.getPointerInfo().getLocation();
-                    rect.setX(sp.getX() - screenBounds.getMinX());
-                    rect.setY(sp.getY() - screenBounds.getMinY());
-                    rect.setWidth(ep.getX() - sp.getX());
-                    rect.setHeight(ep.getY() - sp.getY());
-                }
-                pane.getChildren().clear();
-                pane.getChildren().add(rect);
-            });
-
-            popup.show((Stage) characterComboBox.getScene().getWindow());
-        } catch (AWTException e) {
-            if (botController != null) {
-                botController.log("Ошибка инициализации Robot: " + e.getMessage());
-            }
-        }
-    }
+    @FXML private void selectMobHpBar() { selectBar(mobHpBarField, "HP моба"); }
+    @FXML private void selectHpBar() { selectBar(hpBarField, "HP персонажа"); }
+    @FXML private void selectMpBar() { selectBar(mpBarField, "MP персонажа"); }
 
     public ObservableList<Action> getActions() {
         return actions;

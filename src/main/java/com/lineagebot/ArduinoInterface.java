@@ -4,52 +4,55 @@ import com.fazecast.jSerialComm.SerialPort;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 public class ArduinoInterface {
     private SerialPort serialPort;
     private final String portName;
+    private final Consumer<String> logCallback;
     private static final int MAX_REOPEN_ATTEMPTS = 3;
-    private static final long REOPEN_DELAY_MS = 2000;
+    private static final long REOPEN_DELAY_MS = 1000;
+    private static final long OPEN_PORT_DELAY_MS = 500;
 
-    public ArduinoInterface(String portName) {
+    public ArduinoInterface(String portName, Consumer<String> logCallback) {
         this.portName = portName;
+        this.logCallback = logCallback;
         openPort();
     }
 
     private boolean openPort() {
-        // Проверяем доступные порты
         String[] availablePorts = Arrays.stream(SerialPort.getCommPorts())
                 .map(SerialPort::getSystemPortName)
                 .toArray(String[]::new);
-        System.out.println("Доступные порты: " + String.join(", ", availablePorts));
+        log("Доступные порты: " + String.join(", ", availablePorts));
         if (!Arrays.asList(availablePorts).contains(portName)) {
-            System.err.println("Порт " + portName + " не найден среди доступных");
+            log("Порт " + portName + " не найден среди доступных");
             return false;
         }
 
         serialPort = SerialPort.getCommPort(portName);
         serialPort.setBaudRate(9600);
-        serialPort.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 1000, 0);
+        serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_SEMI_BLOCKING | SerialPort.TIMEOUT_WRITE_BLOCKING, 1000, 1000);
         if (serialPort.openPort()) {
-            System.out.println("Порт " + portName + " открыт");
+            log("Порт " + portName + " открыт");
             try {
-                Thread.sleep(2000); // Задержка для инициализации
+                Thread.sleep(OPEN_PORT_DELAY_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
             return true;
         } else {
-            System.err.println("Не удалось открыть порт: " + portName);
+            log("Не удалось открыть порт: " + portName);
             return false;
         }
     }
 
-    public void sendCommand(String command) {
+    public boolean sendCommand(String command) {
         int attempts = 0;
         while (attempts < MAX_REOPEN_ATTEMPTS) {
             try {
                 if (!serialPort.isOpen()) {
-                    System.out.println("Порт " + portName + " закрыт, попытка переоткрытия " + (attempts + 1) + "/" + MAX_REOPEN_ATTEMPTS);
+                    log("Порт " + portName + " закрыт, попытка переоткрытия " + (attempts + 1) + "/" + MAX_REOPEN_ATTEMPTS);
                     if (!openPort()) {
                         attempts++;
                         if (attempts < MAX_REOPEN_ATTEMPTS) {
@@ -57,39 +60,51 @@ public class ArduinoInterface {
                                 Thread.sleep(REOPEN_DELAY_MS);
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
-                                return;
+                                return false;
                             }
                             continue;
                         } else {
-                            System.err.println("Не удалось переоткрыть порт " + portName + " после " + MAX_REOPEN_ATTEMPTS + " попыток");
-                            return;
+                            log("Не удалось переоткрыть порт " + portName + " после " + MAX_REOPEN_ATTEMPTS + " попыток");
+                            return false;
                         }
                     }
                 }
-                System.out.println("Отправлена команда: " + command);
+                log("Отправлена команда: " + command);
                 serialPort.getOutputStream().write((command + "\n").getBytes("UTF-8"));
                 serialPort.getOutputStream().flush();
-                Thread.sleep(50); // Задержка между командами
-                return;
-            } catch (IOException | InterruptedException e) {
-                System.err.println("Ошибка отправки команды: " + e.getMessage());
+                byte[] buffer = new byte[1024];
+                int bytesRead = serialPort.getInputStream().read(buffer, 0, buffer.length);
+                String response = new String(buffer, 0, bytesRead, "UTF-8").trim();
+                log("Ответ от Arduino: " + response);
+                return response.contains("OK");
+            } catch (IOException e) {
+                log("Ошибка отправки команды: " + e.getMessage());
                 if (!serialPort.isOpen()) {
                     attempts++;
                     continue;
                 }
-                return;
+                return false;
             }
         }
+        return false;
     }
 
     public void close() {
         if (serialPort != null && serialPort.isOpen()) {
             serialPort.closePort();
-            System.out.println("Порт " + portName + " закрыт");
+            log("Порт " + portName + " закрыт");
         }
     }
 
     public boolean isPortOpen() {
         return serialPort != null && serialPort.isOpen();
+    }
+
+    private void log(String message) {
+        if (logCallback != null) {
+            logCallback.accept(message);
+        } else {
+            System.out.println(message);
+        }
     }
 }

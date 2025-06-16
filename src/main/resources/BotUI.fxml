@@ -2,63 +2,65 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController" stylesheets="@styles.css">
     <center>
-        <VBox spacing="10" alignment="center">
-            <HBox spacing="10">
-                <Label text="Персонаж:" />
-                <ComboBox fx:id="characterComboBox" />
-                <Button fx:id="refreshCharactersButton" text="Обновить" onAction="#refreshCharacters" />
-                <Button fx:id="activateWindowButton" text="Активировать" onAction="#activateWindow" />
+        <VBox spacing="10" alignment="CENTER" styleClass="main-pane">
+            <HBox spacing="10" alignment="CENTER">
+                <Label text="Окно игры:" styleClass="label"/>
+                <ComboBox fx:id="characterComboBox" prefWidth="200"/>
+                <Button fx:id="refreshCharactersButton" text="Обновить" onAction="#refreshCharacters" styleClass="button"/>
+                <Button fx:id="activateWindowButton" text="Активировать" onAction="#activateWindow" styleClass="button"/>
             </HBox>
-            <HBox spacing="10">
-                <Label text="HP:" />
-                <TextField fx:id="hpDisplayField" editable="false" />
-                <Label text="MP:" />
-                <TextField fx:id="mpDisplayField" editable="false" />
-                <Label text="HP%:" />
-                <TextField fx:id="hpPercentField" />
-                <Label text="MP%:" />
-                <TextField fx:id="mpPercentField" />
+            <HBox spacing="10" alignment="CENTER">
+                <Label text="HP:" styleClass="label"/>
+                <TextField fx:id="hpDisplayField" editable="false" prefWidth="80"/>
+                <Label text="MP:" styleClass="label"/>
+                <TextField fx:id="mpDisplayField" editable="false" prefWidth="80"/>
+                <Label text="HP%:" styleClass="label"/>
+                <TextField fx:id="hpPercentField" promptText="0-100" prefWidth="60" styleClass="numeric-field"/>
+                <Label text="MP%:" styleClass="label"/>
+                <TextField fx:id="mpPercentField" promptText="0-100" prefWidth="60" styleClass="numeric-field"/>
             </HBox>
-            <HBox spacing="10">
-                <Label text="HP Bar:" />
-                <TextField fx:id="hpBarField" />
-                <Button fx:id="selectHpBarButton" text="Выбрать" onAction="#selectHpBar" />
-                <Label text="MP Bar:" />
-                <TextField fx:id="mpBarField" />
-                <Button fx:id="selectMpBarButton" text="Выбрать" onAction="#selectMpBar" />
-                <Label text="Mob HP Bar:" />
-                <TextField fx:id="mobHpBarField" />
-                <Button fx:id="selectMobHpBarButton" text="Выбрать" onAction="#selectMobHpBar" />
+            <HBox spacing="10" alignment="CENTER">
+                <Label text="HP Bar:" styleClass="label"/>
+                <TextField fx:id="hpBarField" promptText="x,y,width,height" prefWidth="120"/>
+                <Button fx:id="selectHpBarButton" text="Выбрать" onAction="#selectHpBar" styleClass="button"/>
+                <Label text="MP Bar:" styleClass="label"/>
+                <TextField fx:id="mpBarField" promptText="x,y,width,height" prefWidth="120"/>
+                <Button fx:id="selectMpBarButton" text="Выбрать" onAction="#selectMpBar" styleClass="button"/>
             </HBox>
-            <HBox spacing="10">
-                <Label text="Порт Arduino:" />
-                <ComboBox fx:id="arduinoPortComboBox" />
+            <HBox spacing="10" alignment="CENTER">
+                <Label text="Mob HP Bar:" styleClass="label"/>
+                <TextField fx:id="mobHpBarField" promptText="x,y,width,height" prefWidth="120"/>
+                <Button fx:id="selectMobHpBarButton" text="Выбрать" onAction="#selectMobHpBar" styleClass="button"/>
             </HBox>
-            <VBox spacing="10">
-                <Label text="Действия:" />
-                <TableView fx:id="actionsTable">
+            <HBox spacing="10" alignment="CENTER">
+                <Label text="Порт Arduino:" styleClass="label"/>
+                <ComboBox fx:id="arduinoPortComboBox" prefWidth="100"/>
+            </HBox>
+            <VBox spacing="5" alignment="CENTER">
+                <Label text="Действия:" styleClass="label"/>
+                <TableView fx:id="actionsTable" prefHeight="150">
                     <columns>
-                        <TableColumn fx:id="actionTypeColumn" text="Тип действия" />
-                        <TableColumn fx:id="keysColumn" text="Клавиши" />
+                        <TableColumn fx:id="actionTypeColumn" text="Тип действия" prefWidth="150"/>
+                        <TableColumn fx:id="keysColumn" text="Клавиши" prefWidth="150"/>
                     </columns>
                 </TableView>
-                <HBox spacing="10">
-                    <ComboBox fx:id="actionTypeComboBox" />
-                    <TextField fx:id="keysField" />
-                    <Button fx:id="addActionButton" text="Добавить" onAction="#addAction" />
-                    <Button fx:id="editActionButton" text="Редактировать" onAction="#editAction" />
-                    <Button fx:id="deleteActionButton" text="Удалить" onAction="#deleteAction" />
+                <HBox spacing="10" alignment="CENTER">
+                    <ComboBox fx:id="actionTypeComboBox" prefWidth="150"/>
+                    <TextField fx:id="keysField" promptText="Нажмите клавиши" prefWidth="100"/>
+                    <Button fx:id="addActionButton" text="Добавить" onAction="#addAction" styleClass="button"/>
+                    <Button fx:id="editActionButton" text="Редактировать" onAction="#editAction" styleClass="button"/>
+                    <Button fx:id="deleteActionButton" text="Удалить" onAction="#deleteAction" styleClass="button"/>
                 </HBox>
             </VBox>
-            <HBox spacing="10">
-                <Button fx:id="startButton" text="Старт" onAction="#startBot" />
-                <Button fx:id="stopButton" text="Стоп" onAction="#stopBot" />
-                <Button fx:id="saveSettingsButton" text="Сохранить настройки" onAction="#saveSettings" />
-                <Button fx:id="loadSettingsButton" text="Загрузить настройки" onAction="#loadSettings" />
+            <HBox spacing="10" alignment="CENTER">
+                <Button fx:id="startButton" text="_Старт (F5)" mnemonicParsing="true" onAction="#startBot" styleClass="button"/>
+                <Button fx:id="stopButton" text="С_топ (F6)" mnemonicParsing="true" onAction="#stopBot" styleClass="button"/>
+                <Button fx:id="saveSettingsButton" text="Сохранить" onAction="#saveSettings" styleClass="button"/>
+                <Button fx:id="loadSettingsButton" text="Загрузить" onAction="#loadSettings" styleClass="button"/>
             </HBox>
-            <TextArea fx:id="logArea" editable="false" />
+            <TextArea fx:id="logArea" editable="false" prefHeight="150" maxHeight="150" styleClass="log-area"/>
         </VBox>
     </center>
 </BorderPane>
