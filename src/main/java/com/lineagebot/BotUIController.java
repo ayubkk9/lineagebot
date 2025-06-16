@@ -71,6 +71,12 @@ public class BotUIController {
     @FXML private javafx.scene.control.Button selectMpBarButton;
     @FXML private javafx.scene.control.Button saveSettingsButton;
     @FXML private javafx.scene.control.Button loadSettingsButton;
+    private static final int MAX_LOG_LINES = 100;
+    private static final long LOG_UPDATE_DELAY_MS = 200;
+    private final StringBuilder logBuffer = new StringBuilder();
+    private volatile boolean isRunning = false;
+    private long lastLogUpdateTime = 0;
+    private final Object logSync = new Object();
 
     private BotController botController;
     private Thread hpMpUpdateThread;
@@ -156,16 +162,28 @@ public class BotUIController {
         });
     }
 
+    private final StringBuilder logContent = new StringBuilder();
+
     private void limitLogArea() {
+        // Вместо привязки используем прямой аппенд
         logArea.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal == null) return;
-            String[] lines = newVal.split("\n");
-            if (lines.length > 100) {
-                StringBuilder trimmed = new StringBuilder();
-                for (int i = lines.length - 100; i < lines.length; i++) {
-                    trimmed.append(lines[i]).append("\n");
-                }
-                Platform.runLater(() -> logArea.setText(trimmed.toString()));
+            if (newVal != null && !newVal.isEmpty()) {
+                Platform.runLater(() -> {
+                    logContent.append(newVal).append("\n");
+
+                    // Обрезаем если слишком много строк
+                    String[] lines = logContent.toString().split("\n");
+                    if (lines.length > MAX_LOG_LINES) {
+                        logContent.setLength(0);
+                        for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
+                            logContent.append(lines[i]).append("\n");
+                        }
+                    }
+
+                    // Устанавливаем текст без привязки
+                    logArea.setText(logContent.toString());
+                    logArea.setScrollTop(Double.MAX_VALUE); // Автоскролл
+                });
             }
         });
     }
@@ -356,62 +374,126 @@ public class BotUIController {
 
     @FXML
     private void startBot() {
+        if (isRunning) return;
+        isRunning = true;
+
         try {
-            if (logArea.textProperty().isBound()) {
-                logArea.textProperty().unbind();
+            // Очистка лога
+            synchronized (logBuffer) {
+                logBuffer.setLength(0);
+                Platform.runLater(() -> logArea.setText(""));
             }
 
+            // Получение настроек
             double hpPercent = Double.parseDouble(hpPercentField.getText());
             double mpPercent = Double.parseDouble(mpPercentField.getText());
             String arduinoPort = arduinoPortComboBox.getSelectionModel().getSelectedItem();
             String selectedCharacter = characterComboBox.getSelectionModel().getSelectedItem();
 
             if (arduinoPort == null || selectedCharacter == null) {
-                log("Ошибка: порт или персонаж не выбраны");
+                appendToLog("Ошибка: порт или персонаж не выбраны");
+                isRunning = false;
                 return;
             }
 
+            // Парсинг координат
             int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
             int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
             int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
 
             if (hpBar == null || mpBar == null || mobHpBar == null) {
-                log("Ошибка: неверный формат координат полос");
+                appendToLog("Ошибка: неверный формат координат полос");
+                isRunning = false;
                 return;
             }
 
+            // Создание контроллера бота
             botController = new BotController(arduinoPort, hpPercent, mpPercent,
                     selectedCharacter, actions, hpBar, mpBar, mobHpBar);
+
+            // Настройка обработчика логов
+            botController.logProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null && !newVal.isEmpty()) {
+                    synchronized (logBuffer) {
+                        logBuffer.append(newVal).append("\n");
+                    }
+                    scheduleLogUpdate();
+                }
+            });
+
+            // Запуск бота
             botController.startBot();
-            logArea.textProperty().bind(botController.logProperty());
             startButton.setDisable(true);
             stopButton.setDisable(false);
             startHpMpUpdate(selectedCharacter, hpBar, mpBar);
             activateWindow();
+
         } catch (NumberFormatException e) {
-            log("Ошибка: неверный формат процентов HP/MP");
+            appendToLog("Ошибка: неверный формат процентов HP/MP");
+            isRunning = false;
         } catch (Exception e) {
-            log("Ошибка запуска: " + e.getMessage());
+            appendToLog("Ошибка запуска: " + e.getMessage());
+            isRunning = false;
         }
     }
 
     @FXML
     private void stopBot() {
+        if (!isRunning) return;
+        isRunning = false;
+
         if (botController != null) {
             botController.stopBot();
-            startButton.setDisable(false);
-            stopButton.setDisable(true);
-            logArea.textProperty().unbind();
         }
+
         if (hpMpUpdateThread != null) {
             hpMpUpdateThread.interrupt();
-            try {
-                hpMpUpdateThread.join(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
             hpMpUpdateThread = null;
         }
+
+        startButton.setDisable(false);
+        stopButton.setDisable(true);
+    }
+
+    private void scheduleLogUpdate() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastLogUpdateTime > LOG_UPDATE_DELAY_MS) {
+            lastLogUpdateTime = currentTime;
+            Platform.runLater(this::updateLogDisplay);
+        }
+    }
+
+    private void updateLogDisplay() {
+        if (!isRunning) return;
+
+        synchronized (logBuffer) {
+            String currentText = logArea.getText();
+            String[] bufferLines = logBuffer.toString().split("\n");
+
+            if (bufferLines.length > MAX_LOG_LINES) {
+                // Обрезаем старые логи
+                int startIdx = bufferLines.length - MAX_LOG_LINES;
+                StringBuilder trimmed = new StringBuilder();
+                for (int i = startIdx; i < bufferLines.length; i++) {
+                    trimmed.append(bufferLines[i]).append("\n");
+                }
+                logBuffer.setLength(0);
+                logBuffer.append(trimmed);
+                currentText = trimmed.toString();
+            } else {
+                currentText = logBuffer.toString();
+            }
+
+            logArea.setText(currentText);
+            logArea.setScrollTop(Double.MAX_VALUE);
+        }
+    }
+
+    private void appendToLog(String message) {
+        synchronized (logBuffer) {
+            logBuffer.append(message).append("\n");
+        }
+        scheduleLogUpdate();
     }
 
     private void startHpMpUpdate(String characterWindow, int[] hpBar, int[] mpBar) {
