@@ -175,7 +175,6 @@ public class BotController {
             WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, windowTitle);
             return hWnd != null && User32.INSTANCE.IsWindowVisible(hWnd);
         }
-        // Для macOS и Linux использовать альтернативу, например, через ProcessHandle
         try {
             return ProcessHandle.allProcesses()
                     .map(ProcessHandle::info)
@@ -185,7 +184,7 @@ public class BotController {
                     .isPresent();
         } catch (Exception e) {
             log("Ошибка проверки активности окна на " + os + ": " + e.getMessage());
-            return true; // Заглушка для других ОС
+            return true;
         }
     }
 }

@@ -12,11 +12,9 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) throws IOException {
-        // Предварительная загрузка OpenCV и OpenBLAS
         Loader.load(org.bytedeco.opencv.global.opencv_core.class);
         Loader.load(org.bytedeco.openblas.global.openblas_nolapack.class);
 
-        // Убедитесь, что путь начинается с "/" для ресурсов
         FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("/BotUI.fxml"));
         if (fxmlLoader.getLocation() == null) {
             throw new IOException("Не удалось найти BotUI.fxml в ресурсах");
