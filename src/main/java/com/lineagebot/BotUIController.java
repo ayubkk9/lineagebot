@@ -183,6 +183,7 @@ public class BotUIController {
 
     private void limitLogArea() {
         logArea.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == null) return;
             String[] lines = newVal.split("\n");
             if (lines.length > 100) {
                 StringBuilder trimmed = new StringBuilder();
@@ -327,40 +328,64 @@ public class BotUIController {
     @FXML
     private void startBot() {
         try {
+            // Отвязываем лог, если уже привязан
+            if (logArea.textProperty().isBound()) {
+                logArea.textProperty().unbind();
+            }
+
+            // Проверяем и парсим настройки
             double hpPercent = Double.parseDouble(hpPercentField.getText());
             double mpPercent = Double.parseDouble(mpPercentField.getText());
             String arduinoPort = arduinoPortComboBox.getSelectionModel().getSelectedItem();
             String selectedCharacter = characterComboBox.getSelectionModel().getSelectedItem();
+
             if (arduinoPort == null || selectedCharacter == null) {
-                if (botController != null) {
-                    botController.log("Ошибка: порт или персонаж не выбраны");
-                }
+                log("Ошибка: порт Arduino или персонаж не выбраны");
                 return;
             }
+
+            // Парсим координаты полос
             int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
             int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
             int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
+
             if (hpBar == null || mpBar == null || mobHpBar == null) {
-                if (botController != null) {
-                    botController.log("Ошибка: неверный формат координат полос");
-                }
+                log("Ошибка: неверный формат координат полос");
                 return;
             }
-            botController = new BotController(arduinoPort, hpPercent, mpPercent, selectedCharacter, actions, hpBar, mpBar, mobHpBar);
+
+            // Создаем и запускаем бота
+            botController = new BotController(arduinoPort, hpPercent, mpPercent,
+                    selectedCharacter, actions, hpBar, mpBar, mobHpBar);
             botController.startBot();
+
+            // Привязываем лог с защитой от NPE
             logArea.textProperty().bind(botController.logProperty());
+
+            // Обновляем UI
             startButton.setDisable(true);
             stopButton.setDisable(false);
+
+            // Запускаем мониторинг HP/MP
             startHpMpUpdate(selectedCharacter, hpBar, mpBar);
+
+            // Активируем окно игры
             activateWindow();
+
         } catch (NumberFormatException e) {
-            if (botController != null) {
-                botController.log("Ошибка: неверный формат процентов HP/MP");
-            }
+            log("Ошибка: неверный формат процентов HP/MP");
         } catch (Exception e) {
-            if (botController != null) {
-                botController.log("Ошибка запуска: " + e.getMessage());
-            }
+            log("Ошибка запуска: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // Вспомогательный метод для логирования
+    private void log(String message) {
+        if (botController != null) {
+            botController.log(message);
+        } else {
+            Platform.runLater(() -> logArea.appendText(message + "\n"));
         }
     }
 

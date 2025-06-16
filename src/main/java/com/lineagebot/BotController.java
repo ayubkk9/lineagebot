@@ -41,92 +41,103 @@ public class BotController {
                 throw new Exception("Порт Arduino не доступен");
             }
         }
+
         running = true;
         new Thread(() -> {
             while (running) {
                 try {
                     if (!isWindowActive(characterWindow)) {
-                        log("Окно " + characterWindow + " не активно, пропуск цикла");
-                        Thread.sleep(9000);
+                        log("Окно не активно, пропуск цикла");
+                        Thread.sleep(2000); // Уменьшил задержку
                         continue;
                     }
 
+                    // Поиск моба (если клавиши заданы)
                     String searchKeys = getActionKeys("Поиск Моба");
                     if (!searchKeys.isEmpty()) {
                         synchronized (lock) {
                             for (String key : searchKeys.split(",")) {
                                 arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                log("Поиск цели: нажата " + key.trim());
+                                log("Поиск цели: " + key.trim());
                                 Thread.sleep(200);
                             }
                         }
-                    } else {
-                        log("Клавиша поиска не задана");
                     }
 
+                    // Проверяем HP моба
                     double currentMobHP;
                     synchronized (lock) {
                         currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
                     }
-                    log("HP моба: " + String.format("%.1f%%", currentMobHP * 100));
-                    while (currentMobHP > 0.01 && running) {
+                    log("HP моба: " + (currentMobHP * 100) + "%");
+
+                    // Если моб жив - атакуем
+                    if (currentMobHP > 0.05) { // Повысил порог для надёжности
                         String attackKeys = getActionKeys("Атака моба");
                         if (!attackKeys.isEmpty()) {
                             synchronized (lock) {
                                 for (String key : attackKeys.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                    log("Выполнено действие: " + key.trim());
+                                    log("Атака: " + key.trim());
                                     Thread.sleep(200);
                                 }
                             }
-                        } else {
-                            log("Клавиши для атаки моба не заданы");
-                            break;
                         }
-
-                        synchronized (lock) {
-                            currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
-                        }
-                        log("HP моба после атаки: " + String.format("%.1f%%", currentMobHP * 100));
-                        Thread.sleep(500);
+                        Thread.sleep(500); // Пауза между атаками
+                        continue; // Возвращаемся к проверке HP моба
                     }
 
-                    if (currentMobHP <= 0.01 && !getActionKeys("Моб убит").isEmpty()) {
-                        log("Моб мёртв, переключение...");
-                        String deadKeys = getActionKeys("Моб убит");
+                    // Если моб мёртв - выполняем действие "Моб убит"
+                    String deadKeys = getActionKeys("Моб убит");
+                    if (!deadKeys.isEmpty()) {
                         synchronized (lock) {
                             for (String key : deadKeys.split(",")) {
                                 arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                log("Выполнено действие: " + key.trim());
+                                log("Моб убит: " + key.trim());
                                 Thread.sleep(200);
                             }
                         }
                     }
 
-                    String mpKey = getActionKeys("Низкое MP");
-                    if (!mpKey.isEmpty()) {
-                        double playerMP;
-                        synchronized (lock) {
-                            playerMP = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
-                        }
-                        if (playerMP < mpPercent) {
-                            synchronized (lock) {
-                                arduino.sendCommand("PRESS_KEY:" + mpKey);
-                            }
-                            log("Использовано зелье MP: " + mpKey);
-                            Thread.sleep(200);
-                        }
-                    }
+                    // Проверяем MP и HP персонажа
+                    checkPlayerStatus();
 
-                    Thread.sleep(1000);
+                    Thread.sleep(1000); // Общая задержка между циклами
+
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 } catch (Exception e) {
-                    log("Ошибка: " + e.getMessage());
+                    log("Ошибка в цикле бота: " + e.getMessage());
                 }
             }
         }).start();
+    }
+
+    // Отдельный метод для проверки HP/MP персонажа
+    private void checkPlayerStatus() {
+        try {
+            String mpKey = getActionKeys("Низкое MP");
+            String hpKey = getActionKeys("Низкое HP");
+
+            if (!mpKey.isEmpty()) {
+                double playerMP = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
+                if (playerMP < mpPercent) {
+                    arduino.sendCommand("PRESS_KEY:" + mpKey);
+                    log("Восстановление MP: " + mpKey);
+                }
+            }
+
+            if (!hpKey.isEmpty()) {
+                double playerHP = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
+                if (playerHP < hpPercent) {
+                    arduino.sendCommand("PRESS_KEY:" + hpKey);
+                    log("Восстановление HP: " + hpKey);
+                }
+            }
+        } catch (Exception e) {
+            log("Ошибка проверки HP/MP: " + e.getMessage());
+        }
     }
 
     public void stopBot() {
