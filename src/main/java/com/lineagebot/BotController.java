@@ -48,67 +48,71 @@ public class BotController {
                 try {
                     if (!isWindowActive(characterWindow)) {
                         log("Окно не активно, пропуск цикла");
-                        Thread.sleep(2000); // Уменьшил задержку
+                        Thread.sleep(2000);
                         continue;
                     }
 
-                    // Поиск моба (если клавиши заданы)
+                    // 1. Поиск моба (если клавиши заданы)
                     String searchKeys = getActionKeys("Поиск Моба");
                     if (!searchKeys.isEmpty()) {
                         synchronized (lock) {
                             for (String key : searchKeys.split(",")) {
                                 arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                log("Поиск цели: " + key.trim());
+                                log("🔍 Поиск цели: " + key.trim());
                                 Thread.sleep(200);
                             }
                         }
                     }
 
-                    // Проверяем HP моба
+                    // 2. Проверяем HP моба
                     double currentMobHP;
                     synchronized (lock) {
                         currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
                     }
-                    log("HP моба: " + (currentMobHP * 100) + "%");
+                    log("❤️ HP моба: " + (currentMobHP * 100) + "%");
 
-                    // Если моб жив - атакуем
-                    if (currentMobHP > 0.05) { // Повысил порог для надёжности
+                    // 3. Если моб жив - атакуем
+                    if (currentMobHP > 0.05) { // 5% вместо 1% для надёжности
                         String attackKeys = getActionKeys("Атака моба");
                         if (!attackKeys.isEmpty()) {
                             synchronized (lock) {
                                 for (String key : attackKeys.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                    log("Атака: " + key.trim());
-                                    Thread.sleep(200);
+                                    log("⚔️ Атака: " + key.trim());
+                                    Thread.sleep(300); // Увеличил задержку между атаками
                                 }
                             }
                         }
-                        Thread.sleep(500); // Пауза между атаками
-                        continue; // Возвращаемся к проверке HP моба
+                        Thread.sleep(800); // Пауза перед повторной проверкой HP моба
+                        continue;
                     }
 
-                    // Если моб мёртв - выполняем действие "Моб убит"
+                    // 4. Если моб мёртв - ждём 1-2 сек перед поиском нового
+                    log("☠️ Моб убит! Ждём 1.5 сек...");
+                    Thread.sleep(1500); // Задержка перед поиском нового
+
                     String deadKeys = getActionKeys("Моб убит");
                     if (!deadKeys.isEmpty()) {
                         synchronized (lock) {
                             for (String key : deadKeys.split(",")) {
                                 arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                log("Моб убит: " + key.trim());
-                                Thread.sleep(200);
+                                log("🔄 Действие после убийства: " + key.trim());
+                                Thread.sleep(300);
                             }
                         }
                     }
 
-                    // Проверяем MP и HP персонажа
+                    // 5. Проверяем MP и HP персонажа
                     checkPlayerStatus();
 
-                    Thread.sleep(1000); // Общая задержка между циклами
+                    // 6. Общая задержка между циклами
+                    Thread.sleep(1000);
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 } catch (Exception e) {
-                    log("Ошибка в цикле бота: " + e.getMessage());
+                    log("❌ Ошибка: " + e.getMessage());
                 }
             }
         }).start();
