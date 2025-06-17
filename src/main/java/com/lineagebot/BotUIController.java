@@ -4,17 +4,18 @@ import com.fazecast.jSerialComm.SerialPort;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Scene;
+import javafx.scene.control.*;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
@@ -29,48 +30,67 @@ import javafx.stage.Popup;
 import javafx.stage.Stage;
 import javafx.geometry.Rectangle2D;
 import javafx.stage.Screen;
+import javafx.util.StringConverter;
 import org.json.JSONObject;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.ResourceBundle;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class BotUIController {
-    @FXML private javafx.scene.control.TextField characterNameField;
-    @FXML private javafx.scene.control.ComboBox<String> characterComboBox;
-    @FXML private javafx.scene.control.Button refreshCharactersButton;
-    @FXML private javafx.scene.control.Button activateWindowButton;
-    @FXML private javafx.scene.control.TextField hpDisplayField;
-    @FXML private javafx.scene.control.TextField mpDisplayField;
-    @FXML private javafx.scene.control.TextField hpPercentField;
-    @FXML private javafx.scene.control.TextField mpPercentField;
-    @FXML private javafx.scene.control.TextField hpBarField;
-    @FXML private javafx.scene.control.TextField mpBarField;
-    @FXML private javafx.scene.control.TextField mobHpBarField;
-    @FXML private javafx.scene.control.ComboBox<String> arduinoPortComboBox;
-    @FXML private javafx.scene.control.TableView<Action> actionsTable;
-    @FXML private javafx.scene.control.TableColumn<Action, String> actionTypeColumn;
-    @FXML private javafx.scene.control.TableColumn<Action, String> keysColumn;
-    @FXML private javafx.scene.control.ComboBox<String> actionTypeComboBox;
-    @FXML private javafx.scene.control.TextField keysField;
-    @FXML private javafx.scene.control.Button addActionButton;
-    @FXML private javafx.scene.control.Button editActionButton;
-    @FXML private javafx.scene.control.Button deleteActionButton;
-    @FXML private javafx.scene.control.Button startButton;
-    @FXML private javafx.scene.control.Button stopButton;
-    @FXML private javafx.scene.control.TextArea logArea;
-    @FXML private javafx.scene.control.Button selectMobHpBarButton;
-    @FXML private javafx.scene.control.Button selectHpBarButton;
-    @FXML private javafx.scene.control.Button selectMpBarButton;
-    @FXML private javafx.scene.control.Button saveSettingsButton;
-    @FXML private javafx.scene.control.Button loadSettingsButton;
+    @FXML private TextField characterNameField;
+    @FXML private ComboBox<String> characterComboBox;
+    @FXML private Button refreshCharactersButton;
+    @FXML private Button activateWindowButton;
+    @FXML private TextField hpDisplayField;
+    @FXML private TextField mpDisplayField;
+    @FXML private TextField hpPercentField;
+    @FXML private TextField mpPercentField;
+    @FXML private TextField hpBarField;
+    @FXML private TextField mpBarField;
+    @FXML private TextField mobHpBarField;
+    @FXML private ComboBox<String> arduinoPortComboBox;
+    @FXML private TableView<Action> actionsTable;
+    @FXML private TableColumn<Action, String> actionTypeColumn;
+    @FXML private TableColumn<Action, String> keysColumn;
+    @FXML private ComboBox<String> actionTypeComboBox;
+    @FXML private TextField keysField;
+    @FXML private Button addActionButton;
+    @FXML private Button editActionButton;
+    @FXML private Button deleteActionButton;
+    @FXML private Button startButton;
+    @FXML private Button stopButton;
+    @FXML private TextArea logArea;
+    @FXML private Button selectMobHpBarButton;
+    @FXML private Button selectHpBarButton;
+    @FXML private Button selectMpBarButton;
+    @FXML private Button saveSettingsButton;
+    @FXML private Button loadSettingsButton;
+    @FXML private TableView<BotController.SkillDisplay> skillsTableView;
+    @FXML private ComboBox<BotController.SkillType> skillPriorityCombo;
+    @FXML private ListView<String> strategyListView;
+    @FXML private ComboBox<ClassId> classComboBox;
+    @FXML private TableView<BotController.SkillDisplay> availableSkillsTable;
+    @FXML private TableColumn<BotController.SkillDisplay, String> skillNameColumn;
+    @FXML private TableColumn<BotController.SkillDisplay, String> skillTypeColumn;
+    @FXML private TableColumn<BotController.SkillDisplay, Number> skillMpColumn;
+    @FXML private TableColumn<BotController.SkillDisplay, Number> skillCooldownColumn;
+    @FXML private TextField newSkillNameField;
+    @FXML private ComboBox<BotController.SkillType> newSkillTypeCombo;
+    @FXML private TextField newSkillMpField;
+    @FXML private TextField newSkillCooldownField;
+    @FXML private Button addSkillButton;
+
     private static final int MAX_LOG_LINES = 100;
     private static final long LOG_UPDATE_DELAY_MS = 200;
     private final StringBuilder logBuffer = new StringBuilder();
@@ -84,24 +104,23 @@ public class BotUIController {
     private List<String> capturedKeys = new ArrayList<>();
     private Action editingAction;
     private Stage primaryStage;
+    private final StringBuilder logContent = new StringBuilder();
 
     public void setPrimaryStage(Stage stage) {
         this.primaryStage = stage;
     }
 
     @FXML
-    private void initialize() {
-        stopButton.setDisable(true);
+    public void initialize(URL location, ResourceBundle resources) {
+        // Инициализация таблицы действий
         actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
         keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
         actionsTable.setItems(actions);
-        actionTypeComboBox.getItems().addAll("Атака моба", "Моб убит", "Низкое HP", "Низкое MP", "Поиск Моба");
-        hpPercentField.setText("30");
-        mpPercentField.setText("30");
-        hpBarField.setText("50,50,100,10");
-        mpBarField.setText("50,80,100,10");
-        mobHpBarField.setText("200,100,50,10");
 
+        // Инициализация ComboBox
+        actionTypeComboBox.getItems().addAll("Атака моба", "Моб убит", "Низкое HP", "Низкое MP", "Поиск Моба");
+
+        // Настройка портов Arduino
         SerialPort[] ports = SerialPort.getCommPorts();
         for (SerialPort port : ports) {
             arduinoPortComboBox.getItems().add(port.getSystemPortName());
@@ -110,22 +129,110 @@ public class BotUIController {
             arduinoPortComboBox.getSelectionModel().selectFirst();
         }
 
+        // Настройка горячих клавиш
         keysField.setOnKeyPressed(this::handleKeyPress);
-        keysField.setOnMouseClicked(event -> {
-            capturedKeys.clear();
-            keysField.setText("");
-            keysField.requestFocus();
+
+        // Установка значений по умолчанию
+        hpPercentField.setText("30");
+        mpPercentField.setText("30");
+
+        // Инициализация таблицы скиллов
+        skillNameColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getName()));
+        skillTypeColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getTypeName()));
+        skillMpColumn.setCellValueFactory(cellData -> new SimpleIntegerProperty(cellData.getValue().getMpCost()));
+        skillCooldownColumn.setCellValueFactory(cellData -> new SimpleIntegerProperty(5000)); // Заглушка, можно заменить реальным значением
+        availableSkillsTable.setItems(FXCollections.observableArrayList());
+
+        // Инициализация ComboBox классов
+        classComboBox.getItems().addAll(ClassId.getPlayableClasses());
+        classComboBox.setConverter(new StringConverter<ClassId>() {
+            @Override
+            public String toString(ClassId classId) {
+                return classId != null ? classId.getDisplayName() : "";
+            }
+            @Override
+            public ClassId fromString(String string) {
+                return Arrays.stream(ClassId.values())
+                        .filter(c -> c.getDisplayName().equals(string))
+                        .findFirst()
+                        .orElse(null);
+            }
+        });
+        classComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && botController != null) {
+                botController.loadClassSkills(newVal);
+                availableSkillsTable.setItems(botController.getObservableSkills());
+            }
         });
 
-        validatePercentField(hpPercentField);
-        validatePercentField(mpPercentField);
-        limitLogArea();
-        setupHotKeys();
+        // Инициализация ComboBox типов скиллов
+        newSkillTypeCombo.getItems().addAll(BotController.SkillType.values());
+        newSkillTypeCombo.setConverter(new StringConverter<BotController.SkillType>() {
+            @Override
+            public String toString(BotController.SkillType type) {
+                return type != null ? type.getName() : "";
+            }
+            @Override
+            public BotController.SkillType fromString(String string) {
+                return Arrays.stream(BotController.SkillType.values())
+                        .filter(t -> t.getName().equals(string))
+                        .findFirst()
+                        .orElse(null);
+            }
+        });
 
-        characterComboBox.setVisible(true);
-        refreshCharactersButton.setVisible(true);
+        // Валидация числовых полей
+        validateNumericField(newSkillMpField, "MP скилла");
+        validateNumericField(newSkillCooldownField, "Перезарядка скилла");
+    }
 
-        characterComboBox.setStyle("-fx-font-size: 12px; -fx-pref-width: 250px;");
+    private void validateNumericField(TextField field, String fieldName) {
+        field.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (!newVal.isEmpty()) {
+                try {
+                    int value = Integer.parseInt(newVal);
+                    if (value < 0) {
+                        Platform.runLater(() -> field.setText(oldVal));
+                        log("Ошибка: " + fieldName + " должно быть неотрицательным");
+                    }
+                } catch (NumberFormatException e) {
+                    Platform.runLater(() -> field.setText(oldVal));
+                    log("Ошибка: " + fieldName + " должно быть числом");
+                }
+            }
+        });
+    }
+
+    @FXML
+    private void addSkill() {
+        String name = newSkillNameField.getText().trim();
+        BotController.SkillType type = newSkillTypeCombo.getSelectionModel().getSelectedItem();
+        String mpText = newSkillMpField.getText().trim();
+        String cooldownText = newSkillCooldownField.getText().trim();
+
+        if (name.isEmpty() || type == null || mpText.isEmpty() || cooldownText.isEmpty()) {
+            log("Ошибка: заполните все поля для скилла");
+            return;
+        }
+
+        try {
+            int mp = Integer.parseInt(mpText);
+            int cooldown = Integer.parseInt(cooldownText);
+            if (botController != null) {
+                int skillId = botController.getObservableSkills().size() + 1; // Простая генерация ID
+                BotController.Skill newSkill = new BotController.Skill(skillId, name, 1, mp, cooldown);
+                botController.addSkill(newSkill);
+                newSkillNameField.clear();
+                newSkillTypeCombo.getSelectionModel().clearSelection();
+                newSkillMpField.clear();
+                newSkillCooldownField.clear();
+                log("Скилл '" + name + "' добавлен");
+            } else {
+                log("Ошибка: бот не инициализирован");
+            }
+        } catch (NumberFormatException e) {
+            log("Ошибка: MP и перезарядка должны быть числами");
+        }
     }
 
     private void setupHotKeys() {
@@ -141,49 +248,19 @@ public class BotUIController {
         }
     }
 
-    private void validatePercentField(javafx.scene.control.TextField field) {
+    private void validatePercentField(TextField field) {
         field.textProperty().addListener((obs, oldVal, newVal) -> {
             if (!newVal.isEmpty()) {
                 try {
                     double value = Double.parseDouble(newVal);
                     if (value < 0 || value > 100) {
                         Platform.runLater(() -> field.setText(oldVal));
-                        if (botController != null) {
-                            botController.log("Ошибка: процент должен быть от 0 до 100");
-                        }
+                        log("Ошибка: процент должен быть от 0 до 100");
                     }
                 } catch (NumberFormatException e) {
                     Platform.runLater(() -> field.setText(oldVal));
-                    if (botController != null) {
-                        botController.log("Ошибка: введите число");
-                    }
+                    log("Ошибка: введите число");
                 }
-            }
-        });
-    }
-
-    private final StringBuilder logContent = new StringBuilder();
-
-    private void limitLogArea() {
-        // Вместо привязки используем прямой аппенд
-        logArea.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && !newVal.isEmpty()) {
-                Platform.runLater(() -> {
-                    logContent.append(newVal).append("\n");
-
-                    // Обрезаем если слишком много строк
-                    String[] lines = logContent.toString().split("\n");
-                    if (lines.length > MAX_LOG_LINES) {
-                        logContent.setLength(0);
-                        for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
-                            logContent.append(lines[i]).append("\n");
-                        }
-                    }
-
-                    // Устанавливаем текст без привязки
-                    logArea.setText(logContent.toString());
-                    logArea.setScrollTop(Double.MAX_VALUE); // Автоскролл
-                });
             }
         });
     }
@@ -256,17 +333,9 @@ public class BotUIController {
             characterComboBox.getItems().setAll(gameWindows);
             characterComboBox.getSelectionModel().selectFirst();
             log("✅ Окно игры найдено: " + gameWindows.get(0));
-
-            // Всегда показываем ComboBox после успешного поиска
-            characterComboBox.setVisible(true);
-            refreshCharactersButton.setVisible(true);
-
             activateWindow();
         } else {
             log("❌ Не найдено окно с ником '" + nickname + "'");
-            // Показываем ручной выбор
-            characterComboBox.setVisible(true);
-            refreshCharactersButton.setVisible(true);
             refreshCharacters();
         }
     }
@@ -278,7 +347,6 @@ public class BotUIController {
 
         return windowClass.equals("UnrealWindow") ||
                 windowClass.equals("Lineage") ||
-                // Дополнительные проверки для современных клиентов
                 (windowClass.startsWith("WindowsForms") && title.matches(".*[A-Za-z0-9_]{3,16}.*"));
     }
 
@@ -335,8 +403,8 @@ public class BotUIController {
                 actions.add(new Action(actionType, keys));
             }
             clearActionFields();
-        } else if (botController != null) {
-            botController.log("Ошибка: тип действия или клавиши не выбраны");
+        } else {
+            log("Ошибка: тип действия или клавиши не выбраны");
         }
     }
 
@@ -350,8 +418,8 @@ public class BotUIController {
             capturedKeys.addAll(List.of(selectedAction.getKeys().split(",")));
             editingAction = selectedAction;
             editActionButton.setText("Сохранить");
-        } else if (botController != null) {
-            botController.log("Выберите действие для редактирования");
+        } else {
+            log("Выберите действие для редактирования");
         }
     }
 
@@ -361,8 +429,8 @@ public class BotUIController {
         if (selectedAction != null) {
             actions.remove(selectedAction);
             clearActionFields();
-        } else if (botController != null) {
-            botController.log("Выберите действие для удаления");
+        } else {
+            log("Выберите действие для удаления");
         }
     }
 
@@ -378,50 +446,35 @@ public class BotUIController {
         isRunning = true;
 
         try {
-            // Очистка лога
-            synchronized (logBuffer) {
-                logBuffer.setLength(0);
-                Platform.runLater(() -> logArea.setText(""));
-            }
+            logBuffer.setLength(0);
+            Platform.runLater(() -> logArea.setText(""));
 
-            // Получение настроек
             double hpPercent = Double.parseDouble(hpPercentField.getText());
             double mpPercent = Double.parseDouble(mpPercentField.getText());
             String arduinoPort = arduinoPortComboBox.getSelectionModel().getSelectedItem();
             String selectedCharacter = characterComboBox.getSelectionModel().getSelectedItem();
 
             if (arduinoPort == null || selectedCharacter == null) {
-                appendToLog("Ошибка: порт или персонаж не выбраны");
+                log("Ошибка: порт или персонаж не выбраны");
                 isRunning = false;
                 return;
             }
 
-            // Парсинг координат
             int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
             int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
             int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
 
             if (hpBar == null || mpBar == null || mobHpBar == null) {
-                appendToLog("Ошибка: неверный формат координат полос");
+                log("Ошибка: неверный формат координат полос");
                 isRunning = false;
                 return;
             }
 
-            // Создание контроллера бота
-            botController = new BotController(arduinoPort, hpPercent, mpPercent,
-                    selectedCharacter, actions, hpBar, mpBar, mobHpBar);
+            botController = new BotController(arduinoPort, this::log);
+            botController.setHpThreshold(hpPercent);
+            botController.setMpThreshold(mpPercent);
+            botController.setActiveWindow(selectedCharacter);
 
-            // Настройка обработчика логов
-            botController.logProperty().addListener((obs, oldVal, newVal) -> {
-                if (newVal != null && !newVal.isEmpty()) {
-                    synchronized (logBuffer) {
-                        logBuffer.append(newVal).append("\n");
-                    }
-                    scheduleLogUpdate();
-                }
-            });
-
-            // Запуск бота
             botController.startBot();
             startButton.setDisable(true);
             stopButton.setDisable(false);
@@ -429,10 +482,10 @@ public class BotUIController {
             activateWindow();
 
         } catch (NumberFormatException e) {
-            appendToLog("Ошибка: неверный формат процентов HP/MP");
+            log("Ошибка: неверный формат процентов HP/MP");
             isRunning = false;
         } catch (Exception e) {
-            appendToLog("Ошибка запуска: " + e.getMessage());
+            log("Ошибка запуска: " + e.getMessage());
             isRunning = false;
         }
     }
@@ -453,47 +506,6 @@ public class BotUIController {
 
         startButton.setDisable(false);
         stopButton.setDisable(true);
-    }
-
-    private void scheduleLogUpdate() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastLogUpdateTime > LOG_UPDATE_DELAY_MS) {
-            lastLogUpdateTime = currentTime;
-            Platform.runLater(this::updateLogDisplay);
-        }
-    }
-
-    private void updateLogDisplay() {
-        if (!isRunning) return;
-
-        synchronized (logBuffer) {
-            String currentText = logArea.getText();
-            String[] bufferLines = logBuffer.toString().split("\n");
-
-            if (bufferLines.length > MAX_LOG_LINES) {
-                // Обрезаем старые логи
-                int startIdx = bufferLines.length - MAX_LOG_LINES;
-                StringBuilder trimmed = new StringBuilder();
-                for (int i = startIdx; i < bufferLines.length; i++) {
-                    trimmed.append(bufferLines[i]).append("\n");
-                }
-                logBuffer.setLength(0);
-                logBuffer.append(trimmed);
-                currentText = trimmed.toString();
-            } else {
-                currentText = logBuffer.toString();
-            }
-
-            logArea.setText(currentText);
-            logArea.setScrollTop(Double.MAX_VALUE);
-        }
-    }
-
-    private void appendToLog(String message) {
-        synchronized (logBuffer) {
-            logBuffer.append(message).append("\n");
-        }
-        scheduleLogUpdate();
     }
 
     private void startHpMpUpdate(String characterWindow, int[] hpBar, int[] mpBar) {
@@ -517,14 +529,17 @@ public class BotUIController {
                         hpDisplayField.setText(String.format("%.1f%%", hpLevel * 100));
                         mpDisplayField.setText(String.format("%.1f%%", mpLevel * 100));
                     });
+
+                    if (botController != null) {
+                        botController.updateHpMpValues(hpLevel * 100, mpLevel * 100);
+                    }
+
                     Thread.sleep(2000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 } catch (Exception e) {
-                    if (botController != null) {
-                        botController.log("Ошибка чтения полос HP/MP: " + e.getMessage());
-                    }
+                    log("Ошибка чтения полос HP/MP: " + e.getMessage());
                 }
             }
         });
@@ -554,14 +569,12 @@ public class BotUIController {
 
             return new int[]{x, y, width, height};
         } catch (Exception e) {
-            if (botController != null) {
-                botController.log("Ошибка парсинга координат для " + fieldName + ": " + e.getMessage());
-            }
+            log("Ошибка парсинга координат для " + fieldName + ": " + e.getMessage());
             return null;
         }
     }
 
-    private void selectBar(javafx.scene.control.TextField targetField, String barName) {
+    private void selectBar(TextField targetField, String barName) {
         log("Нажмите левую кнопку мыши на начало полосы " + barName + ", затем правую для завершения.");
 
         Popup popup = new Popup();
@@ -709,11 +722,27 @@ public class BotUIController {
     }
 
     private void log(String message) {
-        if (botController != null) {
-            botController.log(message);
-        } else {
-            Platform.runLater(() -> logArea.appendText(message + "\n"));
-        }
+        Platform.runLater(() -> {
+            logContent.append(message).append("\n");
+            String[] lines = logContent.toString().split("\n");
+            if (lines.length > MAX_LOG_LINES) {
+                logContent.setLength(0);
+                for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
+                    logContent.append(lines[i]).append("\n");
+                }
+            }
+            logArea.setText(logContent.toString());
+            logArea.setScrollTop(Double.MAX_VALUE);
+        });
+    }
+
+    public void updateSkillStrategy(ActionEvent actionEvent) {
+    }
+
+    public void editSkill(ActionEvent actionEvent) {
+    }
+
+    public void deleteSkill(ActionEvent actionEvent) {
     }
 
     public static class Action {
