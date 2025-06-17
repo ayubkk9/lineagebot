@@ -1,112 +1,116 @@
 <?xml version="1.0" encoding="UTF-8"?>
+
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
-<?import javafx.scene.shape.*?>
 
-<?import javafx.scene.control.cell.PropertyValueFactory?>
-<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="com.lineagebot.BotUIController" stylesheets="@styles.css">
-
-    <center>
-        <TabPane tabClosingPolicy="UNAVAILABLE">
-            <tabs>
-                <Tab text="Основное">
-                    <VBox spacing="10" styleClass="main-pane">
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="Окно игры:" styleClass="label"/>
-                            <ComboBox fx:id="characterComboBox" prefWidth="120"/>
-                            <Button fx:id="refreshCharactersButton" text="Обновить" onAction="#refreshCharacters" styleClass="button"/>
-                            <Button fx:id="activateWindowButton" text="Активировать" onAction="#activateWindow" styleClass="button"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="Ник персонажа:"/>
-                            <TextField fx:id="characterNameField" promptText="Введите ник" prefWidth="215"/>
-                            <Button text="Найти окно" onAction="#detectGameWindow" styleClass="button"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="HP:" styleClass="label"/>
-                            <TextField fx:id="hpDisplayField" editable="false" prefWidth="84"/>
-                            <Label text="MP:" styleClass="label"/>
-                            <TextField fx:id="mpDisplayField" editable="false" prefWidth="84"/>
-                            <Label text="HP%:" styleClass="label"/>
-                            <TextField fx:id="hpPercentField" promptText="0-100" prefWidth="84" styleClass="numeric-field"/>
-                            <Label text="MP%:" styleClass="label"/>
-                            <TextField fx:id="mpPercentField" promptText="0-100" prefWidth="84" styleClass="numeric-field"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="HP полоса:" styleClass="label"/>
-                            <TextField fx:id="hpBarField" prefWidth="150"/>
-                            <Button fx:id="selectHpBarButton" text="Выбрать" onAction="#selectHpBar" styleClass="button"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="MP полоса:" styleClass="label"/>
-                            <TextField fx:id="mpBarField" prefWidth="150"/>
-                            <Button fx:id="selectMpBarButton" text="Выбрать" onAction="#selectMpBar" styleClass="button"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="HP моба:" styleClass="label"/>
-                            <TextField fx:id="mobHpBarField" prefWidth="150"/>
-                            <Button fx:id="selectMobHpBarButton" text="Выбрать" onAction="#selectMobHpBar" styleClass="button"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER_LEFT">
-                            <Label text="Порт Arduino:" styleClass="label"/>
-                            <ComboBox fx:id="arduinoPortComboBox" prefWidth="150"/>
-                        </HBox>
-
-                        <HBox spacing="10" alignment="CENTER">
-                            <Button fx:id="startButton" text="_Старт (F5)" mnemonicParsing="true" onAction="#startBot" styleClass="button"/>
-                            <Button fx:id="stopButton" text="С_топ (F6)" mnemonicParsing="true" onAction="#stopBot" styleClass="button"/>
-                            <Button fx:id="saveSettingsButton" text="Сохранить" onAction="#saveSettings" styleClass="button"/>
-                            <Button fx:id="loadSettingsButton" text="Загрузить" onAction="#loadSettings" styleClass="button"/>
-                        </HBox>
-
-                        <TextArea fx:id="logArea" editable="false" prefHeight="150" styleClass="log-area"/>
-                    </VBox>
-                </Tab>
-
-                <Tab text="Скиллы" closable="false">
-                    <content>
-                        <VBox spacing="10" styleClass="skill-pane">
-                            <Label text="Класс персонажа:" />
-                            <ComboBox fx:id="classComboBox" promptText="Выберите класс" prefWidth="200" />
-                            <Label text="Скиллы:" />
-                            <TableView fx:id="skillsTableView" prefHeight="200">
-                                <columns>
-                                    <TableColumn fx:id="skillNameColumn" text="Название" prefWidth="150" />
-                                    <TableColumn fx:id="skillLevelColumn" text="Уровень" prefWidth="80" />
-                                    <TableColumn fx:id="skillTypeColumn" text="Тип" prefWidth="100" />
-                                    <TableColumn fx:id="skillMpCostColumn" text="MP" prefWidth="60" />
-                                    <TableColumn fx:id="skillActiveColumn" text="Активен" prefWidth="80" />
-                                </columns>
-                            </TableView>
-                            <HBox spacing="10">
-                                <Label text="Название скилла:" />
-                                <TextField fx:id="skillNameField" promptText="Введите название" prefWidth="150" />
-                                <Label text="Уровень:" />
-                                <TextField fx:id="skillLevelField" promptText="1" prefWidth="50" />
-                                <Label text="Тип:" />
-                                <ComboBox fx:id="skillTypeComboBox" prefWidth="120" />
-                                <Label text="MP:" />
-                                <TextField fx:id="skillMpCostField" promptText="0" prefWidth="50" />
-                                <Label text="Клавиша:" />
-                                <TextField fx:id="skillKeyField" promptText="F1, F2..." prefWidth="80" />
-                            </HBox>
-                            <HBox spacing="10">
-                                <Button fx:id="addSkillButton" text="Добавить скилл" onAction="#addSkill" />
-                                <Button fx:id="editSkillButton" text="Редактировать" onAction="#editSkill" />
-                                <Button fx:id="deleteSkillButton" text="Удалить" onAction="#deleteSkill" />
-                            </HBox>
-                        </VBox>
-                    </content>
-                </Tab>
-            </tabs>
-        </TabPane>
-    </center>
-</BorderPane>
+<TabPane fx:id="tabPane" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
+    <tabs>
+        <Tab text="Основные настройки">
+            <VBox spacing="10" style="-fx-padding: 10;">
+                <HBox spacing="10">
+                    <Label text="Имя персонажа:"/>
+                    <TextField fx:id="characterNameField" prefWidth="200"/>
+                    <Button fx:id="refreshCharactersButton" text="Найти окно" onAction="#detectGameWindow"/>
+                </HBox>
+                <ComboBox fx:id="characterComboBox" prefWidth="250"/>
+                <Button fx:id="activateWindowButton" text="Активировать окно" onAction="#activateWindow"/>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="HP:" styleClass="label"/>
+                    <TextField fx:id="hpDisplayField" editable="false" prefWidth="84"/>
+                    <Label text="MP:" styleClass="label"/>
+                    <TextField fx:id="mpDisplayField" editable="false" prefWidth="84"/>
+                    <Label text="HP%:" styleClass="label"/>
+                    <TextField fx:id="hpPercentField" promptText="0-100" prefWidth="84" styleClass="numeric-field"/>
+                    <Label text="MP%:" styleClass="label"/>
+                    <TextField fx:id="mpPercentField" promptText="0-100" prefWidth="84" styleClass="numeric-field"/>
+                </HBox>
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <Label text="Char HP Bar:" styleClass="label"/>
+                    <TextField fx:id="hpBarField" promptText="x,y,width,height" prefWidth="120"/>
+                    <Button fx:id="selectHpBarButton" text="Выбрать" onAction="#selectHpBar" styleClass="button"/>
+                    <Label text="MP Bar:" styleClass="label"/>
+                    <TextField fx:id="mpBarField" promptText="x,y,width,height" prefWidth="120"/>
+                    <Button fx:id="selectMpBarButton" text="Выбрать" onAction="#selectMpBar" styleClass="button"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Label text="HP моба:"/>
+                    <TextField fx:id="mobHpBarField" prefWidth="150"/>
+                    <Button fx:id="selectMobHpBarButton" text="Выбрать полосу HP моба" onAction="#selectMobHpBar"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Label text="Порт Arduino:"/>
+                    <ComboBox fx:id="arduinoPortComboBox" prefWidth="150"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Button fx:id="saveSettingsButton" text="Сохранить настройки" onAction="#saveSettings"/>
+                    <Button fx:id="loadSettingsButton" text="Загрузить настройки" onAction="#loadSettings"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Button fx:id="startButton" text="Старт (F5)" onAction="#startBot"/>
+                    <Button fx:id="stopButton" text="Стоп (F6)" onAction="#stopBot"/>
+                </HBox>
+            </VBox>
+        </Tab>
+        <Tab text="Действия">
+            <VBox spacing="10" style="-fx-padding: 10;">
+                <HBox spacing="10">
+                    <Label text="Тип действия:"/>
+                    <ComboBox fx:id="actionTypeComboBox" prefWidth="150"/>
+                    <Label text="Клавиши:"/>
+                    <TextField fx:id="keysField" prefWidth="150"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Button fx:id="addActionButton" text="Добавить" onAction="#addAction"/>
+                    <Button fx:id="editActionButton" text="Редактировать" onAction="#editAction"/>
+                    <Button fx:id="deleteActionButton" text="Удалить" onAction="#deleteAction"/>
+                </HBox>
+                <TableView fx:id="actionsTable">
+                    <columns>
+                        <TableColumn fx:id="actionTypeColumn" text="Тип действия" prefWidth="150"/>
+                        <TableColumn fx:id="keysColumn" text="Клавиши" prefWidth="150"/>
+                    </columns>
+                </TableView>
+            </VBox>
+        </Tab>
+        <Tab text="Скиллы">
+            <VBox spacing="10" style="-fx-padding: 10;">
+                <HBox spacing="10">
+                    <Label text="Класс персонажа:"/>
+                    <ComboBox fx:id="classComboBox" prefWidth="200"/>
+                </HBox>
+                <HBox spacing="10"> 
+                    <Label text="Название скилла:"/>
+                    <TextField fx:id="newSkillNameField" prefWidth="150"/>
+                    <Label text="Тип скилла:"/>
+                    <ComboBox fx:id="newSkillTypeCombo" prefWidth="150"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Label text="MP скилла:"/>
+                    <TextField fx:id="newSkillMpField" prefWidth="60"/>
+                    <Label text="Перезарядка (мс):"/>
+                    <TextField fx:id="newSkillCooldownField" prefWidth="60"/>
+                    <Label text="Клавиши:"/>
+                    <TextField fx:id="newSkillKeysField" prefWidth="100"/>
+                </HBox>
+                <HBox spacing="10">
+                    <Button fx:id="addSkillButton" text="Добавить скилл" onAction="#addSkill"/>
+                    <Button fx:id="editSkillButton" text="Редактировать скилл" onAction="#editSkill"/>
+                    <Button fx:id="deleteSkillButton" text="Удалить скилл" onAction="#deleteSkill"/>
+                </HBox>
+                <TableView fx:id="availableSkillsTable">
+                    <columns>
+                        <TableColumn fx:id="skillNameColumn" text="Название" prefWidth="150"/>
+                        <TableColumn fx:id="skillTypeColumn" text="Тип" prefWidth="100"/>
+                        <TableColumn fx:id="skillMpColumn" text="MP" prefWidth="60"/>
+                        <TableColumn fx:id="skillCooldownColumn" text="Перезарядка" prefWidth="100"/>
+                        <TableColumn fx:id="skillKeysColumn" text="Клавиши" prefWidth="100"/>
+                    </columns>
+                </TableView>
+            </VBox>
+        </Tab>
+        <Tab text="Логи">
+            <TextArea fx:id="logArea" editable="false" wrapText="true"/>
+        </Tab>
+    </tabs>
+</TabPane>
