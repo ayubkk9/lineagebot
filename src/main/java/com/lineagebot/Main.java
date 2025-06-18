@@ -11,7 +11,7 @@ public class Main extends Application {
     @Override
     public void start(Stage primaryStage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("/BotUI.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 800, 600);
+        Scene scene = new Scene(fxmlLoader.load(), 900, 1100);
 
         BotUIController controller = fxmlLoader.getController();
         controller.setPrimaryStage(primaryStage);

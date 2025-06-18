@@ -8,7 +8,9 @@ import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -26,6 +28,7 @@ public class BotController {
     private final int[] mobHpBar;
     private final Object lock = new Object();
     private final Random random = new Random();
+    private final Map<BotUIController.Action, Long> lastActionTimes = new HashMap<>();
 
     public BotController(String arduinoPort, double hpPercent, double mpPercent, String characterWindow,
                          ObservableList<BotUIController.Action> actions, ObservableList<Skill> skills,
@@ -59,24 +62,26 @@ public class BotController {
                         continue;
                     }
 
-                    // Чтение HP моба
                     double currentMobHP;
                     synchronized (lock) {
                         currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
                     }
 
-                    // Проверка состояния персонажа и выполнение условных скиллов
                     List<BotUIController.Action> triggeredActions = checkPlayerStatus();
                     if (!triggeredActions.isEmpty()) {
-                        // Выполняем приоритетные действия
                         for (BotUIController.Action action : triggeredActions) {
                             String keys = action.getKeys();
                             synchronized (lock) {
                                 for (String key : keys.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                    log("🪄 Приоритетный скилл '" + action.getActionType() + "' (" + action.getCondition() + "): " + key.trim());
+                                    log("🪄 Приоритетный скилл '" + action.getActionType() + "' (" +
+                                            ("Таймер n сек".equals(action.getCondition()) ? "Таймер " + action.getTimerSeconds() + " сек" : action.getCondition()) +
+                                            "): " + key.trim());
                                     Thread.sleep(300 + random.nextInt(100));
                                 }
+                            }
+                            if ("Таймер n сек".equals(action.getCondition())) {
+                                lastActionTimes.put(action, System.currentTimeMillis());
                             }
                             Thread.sleep(500);
                         }
@@ -84,11 +89,10 @@ public class BotController {
                         continue;
                     }
 
-                    // Если моба нет, используем Next Target
                     if (currentMobHP <= 0.05) {
                         String targetKey = getActionKeys("Next Target");
                         if (targetKey.isEmpty()) {
-                            targetKey = "TAB"; // Дефолт для таргетинга
+                            targetKey = "TAB";
                             log("⚠️ Используется дефолтная клавиша для поиска цели: TAB");
                         }
                         synchronized (lock) {
@@ -104,10 +108,8 @@ public class BotController {
 
                     log("❤️ HP моба: " + String.format("%.1f%%", currentMobHP * 100));
 
-                    // Если моб найден, используем Auto Attack или случайный скилл
                     int attackAttempts = 0;
                     while (currentMobHP > 0.05 && attackAttempts < 8 && running) {
-                        // Используем Auto Attack
                         String autoAttackKey = getActionKeys("Auto Attack");
                         if (!autoAttackKey.isEmpty()) {
                             synchronized (lock) {
@@ -121,7 +123,6 @@ public class BotController {
                             log("⚠️ Auto Attack не назначен, пропуск атаки");
                         }
 
-                        // Используем случайный скилл из actions
                         List<BotUIController.Action> availableSkills = actions.stream()
                                 .filter(action -> !action.getActionType().equals("Auto Attack") &&
                                         !action.getActionType().equals("Next Target") &&
@@ -150,7 +151,6 @@ public class BotController {
                         Thread.sleep(500 + random.nextInt(200));
                     }
 
-                    // Если моб мёртв
                     if (currentMobHP <= 0.05) {
                         log("✅ Моб убит! Ждём 1 секунду...");
                         Thread.sleep(1000);
@@ -177,7 +177,6 @@ public class BotController {
     private List<BotUIController.Action> checkPlayerStatus() {
         List<BotUIController.Action> triggeredActions = new ArrayList<>();
         try {
-            // Чтение текущих HP и MP
             double playerHP;
             double playerMP;
             synchronized (lock) {
@@ -185,7 +184,6 @@ public class BotController {
                 playerMP = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
             }
 
-            // Проверка Low HP и Low MP
             String mpKey = getActionKeys("Low MP");
             String hpKey = getActionKeys("Low HP");
 
@@ -209,13 +207,18 @@ public class BotController {
                 }
             }
 
-            // Проверка скиллов с условиями
             for (BotUIController.Action action : actions) {
                 String condition = action.getCondition();
                 if (condition.equals("HP < n%") && playerHP < hpPercent) {
                     triggeredActions.add(action);
                 } else if (condition.equals("MP < n%") && playerMP < mpPercent) {
                     triggeredActions.add(action);
+                } else if (condition.equals("Таймер n сек")) {
+                    long currentTime = System.currentTimeMillis();
+                    long lastTime = lastActionTimes.getOrDefault(action, 0L);
+                    if (lastTime == 0 || currentTime - lastTime >= action.getTimerSeconds() * 1000L) {
+                        triggeredActions.add(action);
+                    }
                 }
             }
 
@@ -230,6 +233,7 @@ public class BotController {
         synchronized (lock) {
             arduino.close();
         }
+        lastActionTimes.clear();
         log("Бот остановлен");
     }
 

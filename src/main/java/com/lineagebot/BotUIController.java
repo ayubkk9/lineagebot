@@ -9,6 +9,8 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.fxml.FXML;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
@@ -19,6 +21,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Popup;
@@ -38,6 +41,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -45,7 +49,7 @@ import java.util.stream.Collectors;
 public class BotUIController {
     @FXML private TextField characterNameField;
     @FXML private ComboBox<String> characterComboBox;
-    @FXML private Button refreshCharactersButton;
+    @FXML private Button detectGameWindowButton;
     @FXML private Button activateWindowButton;
     @FXML private TextField hpDisplayField;
     @FXML private TextField mpDisplayField;
@@ -76,9 +80,12 @@ public class BotUIController {
     @FXML private ComboBox<ClassId> classComboBox;
     @FXML private ProgressBar hpProgressBar;
     @FXML private ProgressBar mpProgressBar;
+    @FXML private ComboBox<String> themeComboBox;
+    @FXML private AnchorPane mainPane;
+    @FXML private TabPane tabPane;
 
     private static final int MAX_LOG_LINES = 100;
-    private static final long LOG_UPDATE_DELAY_MS = 200;
+    private static final long LOG_UPDATE_DELAY_MS = 1000;
     private final StringBuilder logBuffer = new StringBuilder();
     private volatile boolean isRunning = false;
     private long lastLogUpdateTime = 0;
@@ -87,108 +94,327 @@ public class BotUIController {
     private Thread hpMpUpdateThread;
     private final ObservableList<Action> actions = FXCollections.observableArrayList();
     private final ObservableList<String> availableSkills = FXCollections.observableArrayList();
-    private final ObservableList<String> availableConditions = FXCollections.observableArrayList("Нет", "HP < n%", "MP < n%");
+    private final ObservableList<String> availableConditions = FXCollections.observableArrayList("Нет", "HP < n%", "MP < n%", "Таймер n сек");
     private List<String> capturedKeys = new ArrayList<>();
     private Action editingAction;
     private Stage primaryStage;
+    private Scene scene;
 
     public void setPrimaryStage(Stage stage) {
         this.primaryStage = stage;
+        this.scene = stage.getScene();
+        log("Primary stage установлен");
     }
 
     @FXML
     private void initialize() {
-        stopButton.setDisable(true);
-        actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
-        keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
-        conditionColumn.setCellValueFactory(cellData -> cellData.getValue().conditionProperty());
+        log("Инициализация контроллера начата");
+        try {
+            String cssPath = getClass().getResource("/com/lineagebot/styles.css") != null ?
+                    getClass().getResource("/com/lineagebot/styles.css").toExternalForm() : "CSS не найден";
+            log("Путь к styles.css: " + cssPath);
 
-        // Настройка редактирования столбца "Условие выполнения"
-        conditionColumn.setCellFactory(column -> new TableCell<Action, String>() {
-            private final ComboBox<String> comboBox = new ComboBox<>(availableConditions);
+            if (detectGameWindowButton == null) {
+                log("Ошибка: detectGameWindowButton не инициализирован");
+            } else {
+                detectGameWindowButton.setDisable(false);
+                detectGameWindowButton.setOnAction(event -> {
+                    log("Кнопка 'Найти окно' нажата");
+                    detectGameWindow();
+                });
+            }
 
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty) {
-                    setGraphic(null);
+            if (activateWindowButton == null) {
+                log("Ошибка: activateWindowButton не инициализирован");
+            } else {
+                activateWindowButton.setDisable(false);
+                activateWindowButton.setOnAction(event -> {
+                    log("Кнопка 'Активировать' нажата");
+                    activateWindow();
+                });
+            }
+
+            if (selectHpBarButton == null) {
+                log("Ошибка: selectHpBarButton не инициализирован");
+            } else {
+                selectHpBarButton.setDisable(false);
+                selectHpBarButton.setOnAction(event -> {
+                    log("Кнопка 'Выбрать HP' нажата");
+                    selectHpBar();
+                });
+            }
+
+            if (selectMpBarButton == null) {
+                log("Ошибка: selectMpBarButton не инициализирован");
+            } else {
+                selectMpBarButton.setDisable(false);
+                selectMpBarButton.setOnAction(event -> {
+                    log("Кнопка 'Выбрать MP' нажата");
+                    selectMpBar();
+                });
+            }
+
+            if (selectMobHpBarButton == null) {
+                log("Ошибка: selectMobHpBarButton не инициализирован");
+            } else {
+                selectMobHpBarButton.setDisable(false);
+                selectMobHpBarButton.setOnAction(event -> {
+                    log("Кнопка 'Выбрать HP моба' нажата");
+                    selectMobHpBar();
+                });
+            }
+
+            if (addActionButton == null) {
+                log("Ошибка: addActionButton не инициализирован");
+            } else {
+                addActionButton.setDisable(false);
+                addActionButton.setOnAction(event -> {
+                    log("Кнопка 'Добавить' нажата");
+                    addAction();
+                });
+            }
+
+            if (editActionButton == null) {
+                log("Ошибка: editActionButton не инициализирован");
+            } else {
+                editActionButton.setDisable(false);
+                editActionButton.setOnAction(event -> {
+                    log("Кнопка 'Редактировать' нажата");
+                    editAction();
+                });
+            }
+
+            if (deleteActionButton == null) {
+                log("Ошибка: deleteActionButton не инициализирован");
+            } else {
+                deleteActionButton.setDisable(false);
+                deleteActionButton.setOnAction(event -> {
+                    log("Кнопка 'Удалить' нажата");
+                    deleteAction();
+                });
+            }
+
+            if (startButton == null) {
+                log("Ошибка: startButton не инициализирован");
+            } else {
+                startButton.setDisable(false);
+                startButton.setOnAction(event -> {
+                    log("Кнопка 'Запустить' нажата");
+                    startBot();
+                });
+            }
+
+            if (stopButton == null) {
+                log("Ошибка: stopButton не инициализирован");
+            } else {
+                stopButton.setDisable(true);
+                stopButton.setOnAction(event -> {
+                    log("Кнопка 'Остановить' нажата");
+                    stopBot();
+                });
+            }
+
+            if (saveSettingsButton == null) {
+                log("Ошибка: saveSettingsButton не инициализирован");
+            } else {
+                saveSettingsButton.setDisable(false);
+                saveSettingsButton.setOnAction(event -> {
+                    log("Кнопка 'Сохранить настройки' нажата");
+                    saveSettings();
+                });
+            }
+
+            if (loadSettingsButton == null) {
+                log("Ошибка: loadSettingsButton не инициализирован");
+            } else {
+                loadSettingsButton.setDisable(false);
+                loadSettingsButton.setOnAction(event -> {
+                    log("Кнопка 'Загрузить настройки' нажата");
+                    loadSettings();
+                });
+            }
+
+            actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
+            keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
+            conditionColumn.setCellValueFactory(cellData -> {
+                Action action = cellData.getValue();
+                if ("Таймер n сек".equals(action.getCondition())) {
+                    return new SimpleStringProperty("Таймер " + action.getTimerSeconds() + " сек");
+                }
+                return action.conditionProperty();
+            });
+
+            conditionColumn.setCellFactory(column -> new TableCell<Action, String>() {
+                private final ComboBox<String> comboBox = new ComboBox<>(availableConditions);
+
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty) {
+                        setGraphic(null);
+                    } else {
+                        comboBox.setValue(item != null ? item.startsWith("Таймер") ? "Таймер n сек" : item : "Нет");
+                        comboBox.setOnAction(event -> {
+                            Action action = getTableView().getItems().get(getIndex());
+                            String newCondition = comboBox.getValue();
+                            if ("Таймер n сек".equals(newCondition)) {
+                                long seconds = promptForTimerSeconds(action.getActionType(), action.getTimerSeconds());
+                                if (seconds > 0) {
+                                    action.setCondition(newCondition);
+                                    action.setTimerSeconds(seconds);
+                                } else {
+                                    comboBox.setValue(action.getCondition());
+                                }
+                            } else {
+                                action.setCondition(newCondition);
+                                action.setTimerSeconds(0);
+                            }
+                            actionsTable.refresh();
+                        });
+                        setGraphic(comboBox);
+                    }
+                }
+            });
+
+            actionsTable.setItems(actions);
+
+            hpPercentField.setText("30");
+            mpPercentField.setText("30");
+            hpBarField.setText("50,50,100,10");
+            mpBarField.setText("50,80,100,10");
+            mobHpBarField.setText("200,100,50,10");
+
+            SerialPort[] ports = SerialPort.getCommPorts();
+            for (SerialPort port : ports) {
+                arduinoPortComboBox.getItems().add(port.getSystemPortName());
+            }
+            if (!arduinoPortComboBox.getItems().isEmpty()) {
+                arduinoPortComboBox.getSelectionModel().selectFirst();
+            }
+
+            keysField.setOnKeyPressed(this::handleKeyPress);
+            keysField.setOnMouseClicked(event -> {
+                capturedKeys.clear();
+                keysField.setText("");
+                keysField.requestFocus();
+            });
+
+            validatePercentField(hpPercentField);
+            validatePercentField(mpPercentField);
+            setupHotKeys();
+
+            characterComboBox.setVisible(true);
+            detectGameWindowButton.setVisible(true);
+            characterComboBox.setStyle("-fx-font-size: 12px;");
+
+            classComboBox.getItems().addAll(ClassId.getPlayableClasses());
+            classComboBox.setConverter(new StringConverter<ClassId>() {
+                @Override
+                public String toString(ClassId classId) {
+                    return classId != null ? classId.getDisplayName() : "";
+                }
+                @Override
+                public ClassId fromString(String string) {
+                    return Arrays.stream(ClassId.values())
+                            .filter(c -> c.getDisplayName().equals(string))
+                            .findFirst()
+                            .orElse(null);
+                }
+            });
+            classComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal != null) {
+                    loadSkillsForClass(newVal);
+                    log("Выбран класс: " + newVal.getDisplayName());
+                }
+            });
+
+            skillComboBox.setItems(availableSkills);
+            conditionComboBox.setItems(availableConditions);
+            conditionComboBox.getSelectionModel().select("Нет");
+
+            themeComboBox.getItems().addAll("Светлая", "Темная");
+            themeComboBox.getSelectionModel().select("Светлая");
+            themeComboBox.setOnAction(event -> {
+                String selectedTheme = themeComboBox.getSelectionModel().getSelectedItem();
+                log("Тема выбрана: " + selectedTheme);
+                switchTheme(selectedTheme);
+            });
+
+            hpProgressBar.setProgress(0);
+            mpProgressBar.setProgress(0);
+
+            hpProgressBar.progressProperty().addListener((obs, oldVal, newVal) -> {
+                if (newVal.doubleValue() < 0.3) {
+                    hpProgressBar.getStyleClass().add("low");
                 } else {
-                    comboBox.setValue(item != null ? item : "Нет");
-                    comboBox.setOnAction(event -> {
-                        Action action = getTableView().getItems().get(getIndex());
-                        action.setCondition(comboBox.getValue());
-                    });
-                    setGraphic(comboBox);
+                    hpProgressBar.getStyleClass().remove("low");
+                }
+            });
+
+            log("Инициализация контроллера завершена");
+        } catch (Exception e) {
+            log("Ошибка инициализации: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private long promptForTimerSeconds(String actionType, long defaultSeconds) {
+        TextInputDialog dialog = new TextInputDialog(String.valueOf(defaultSeconds));
+        dialog.setTitle("Ввод времени");
+        dialog.setHeaderText("Введите время для скилла '" + actionType + "' (в секундах)");
+        dialog.setContentText("Время (сек):");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            try {
+                long seconds = Long.parseLong(result.get().trim());
+                if (seconds <= 0) {
+                    log("Ошибка: время должно быть положительным числом");
+                    return 0;
+                }
+                return seconds;
+            } catch (NumberFormatException e) {
+                log("Ошибка: введите число секунд");
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private void switchTheme(String theme) {
+        if (theme.equals("Темная")) {
+            applyStyleClass(mainPane, "dark");
+        } else {
+            removeStyleClass(mainPane, "dark");
+        }
+    }
+
+    private void applyStyleClass(Node node, String styleClass) {
+        if (node != null) {
+            node.getStyleClass().add(styleClass);
+            if (node instanceof Parent) {
+                for (Node child : ((Parent) node).getChildrenUnmodifiable()) {
+                    applyStyleClass(child, styleClass);
                 }
             }
-        });
-
-        actionsTable.setItems(actions);
-
-        hpPercentField.setText("30");
-        mpPercentField.setText("30");
-        hpBarField.setText("50,50,100,10");
-        mpBarField.setText("50,80,100,10");
-        mobHpBarField.setText("200,100,50,10");
-
-        SerialPort[] ports = SerialPort.getCommPorts();
-        for (SerialPort port : ports) {
-            arduinoPortComboBox.getItems().add(port.getSystemPortName());
         }
-        if (!arduinoPortComboBox.getItems().isEmpty()) {
-            arduinoPortComboBox.getSelectionModel().selectFirst();
+    }
+
+    private void removeStyleClass(Node node, String styleClass) {
+        if (node != null) {
+            node.getStyleClass().remove(styleClass);
+            if (node instanceof Parent) {
+                for (Node child : ((Parent) node).getChildrenUnmodifiable()) {
+                    removeStyleClass(child, styleClass);
+                }
+            }
         }
-
-        keysField.setOnKeyPressed(this::handleKeyPress);
-        keysField.setOnMouseClicked(event -> {
-            capturedKeys.clear();
-            keysField.setText("");
-            keysField.requestFocus();
-        });
-
-        validatePercentField(hpPercentField);
-        validatePercentField(mpPercentField);
-        limitLogArea();
-        setupHotKeys();
-
-        characterComboBox.setVisible(true);
-        refreshCharactersButton.setVisible(true);
-        characterComboBox.setStyle("-fx-font-size: 12px; -fx-pref-width: 250px;");
-
-        classComboBox.getItems().addAll(ClassId.getPlayableClasses());
-        classComboBox.setConverter(new StringConverter<ClassId>() {
-            @Override
-            public String toString(ClassId classId) {
-                return classId != null ? classId.getDisplayName() : "";
-            }
-            @Override
-            public ClassId fromString(String string) {
-                return Arrays.stream(ClassId.values())
-                        .filter(c -> c.getDisplayName().equals(string))
-                        .findFirst()
-                        .orElse(null);
-            }
-        });
-        classComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
-                loadSkillsForClass(newVal);
-                log("Выбран класс: " + newVal.getDisplayName());
-            }
-        });
-
-        skillComboBox.setItems(availableSkills);
-        conditionComboBox.setItems(availableConditions);
-        conditionComboBox.getSelectionModel().select("Нет");
-
-        // Инициализация прогресс-баров
-        hpProgressBar.setProgress(0);
-        mpProgressBar.setProgress(0);
     }
 
     private void loadSkillsForClass(ClassId classId) {
         availableSkills.clear();
         List<Skill> classSkills = SkillList.getSkillsForClass(classId);
-        availableSkills.addAll(classSkills.stream().map(Skill::getName).toList());
+        availableSkills.addAll(classSkills.stream().map(Skill::toString).collect(Collectors.toList()));
         availableSkills.addAll(Arrays.asList("Auto Attack", "Next Target", "Low HP", "Low MP"));
         log("Загружено " + availableSkills.size() + " скиллов и действий для класса " + classId.getDisplayName());
     }
@@ -214,23 +440,39 @@ public class BotUIController {
         });
     }
 
-    private void limitLogArea() {
-        logArea.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && !newVal.isEmpty()) {
-                Platform.runLater(() -> {
-                    logBuffer.append(newVal).append("\n");
-                    String[] lines = logBuffer.toString().split("\n");
-                    if (lines.length > MAX_LOG_LINES) {
-                        logBuffer.setLength(0);
-                        for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
-                            logBuffer.append(lines[i]).append("\n");
-                        }
-                    }
-                    logArea.setText(logBuffer.toString());
-                    logArea.setScrollTop(Double.MAX_VALUE);
-                });
+    private void log(String message) {
+        synchronized (logSync) {
+            logBuffer.append(message).append("\n");
+            String[] lines = logBuffer.toString().split("\n");
+            if (lines.length > MAX_LOG_LINES) {
+                StringBuilder trimmed = new StringBuilder();
+                for (int i = lines.length - MAX_LOG_LINES; i < lines.length; i++) {
+                    trimmed.append(lines[i]).append("\n");
+                }
+                logBuffer.setLength(0);
+                logBuffer.append(trimmed);
             }
-        });
+            scheduleLogUpdate();
+        }
+    }
+
+    private void scheduleLogUpdate() {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastLogUpdateTime >= LOG_UPDATE_DELAY_MS) {
+            lastLogUpdateTime = currentTime;
+            Platform.runLater(this::updateLogDisplay);
+        }
+    }
+
+    private void updateLogDisplay() {
+        if (!isRunning) return;
+        synchronized (logSync) {
+            String newText = logBuffer.toString();
+            if (!newText.equals(logArea.getText())) {
+                logArea.setText(newText);
+                logArea.setScrollTop(Double.MAX_VALUE);
+            }
+        }
     }
 
     private void handleKeyPress(KeyEvent event) {
@@ -271,6 +513,7 @@ public class BotUIController {
 
     @FXML
     private void detectGameWindow() {
+        log("Метод detectGameWindow вызван");
         String nickname = characterNameField.getText().trim();
         if (nickname.isEmpty()) {
             log("❌ Введите ник персонажа!");
@@ -298,57 +541,25 @@ public class BotUIController {
         }, null);
 
         if (!gameWindows.isEmpty()) {
-            characterComboBox.getItems().setAll(gameWindows);
-            characterComboBox.getSelectionModel().selectFirst();
-            log("✅ Окно игры найдено: " + gameWindows.get(0));
-            activateWindow();
+            Platform.runLater(() -> {
+                characterComboBox.getItems().setAll(gameWindows);
+                characterComboBox.getSelectionModel().selectFirst();
+                log("✅ Окно игры найдено: " + gameWindows.get(0));
+                activateWindow();
+            });
         } else {
             log("❌ Не найдено окно с ником '" + nickname + "'");
-            characterComboBox.setVisible(true);
-            refreshCharactersButton.setVisible(true);
-            refreshCharacters();
+            Platform.runLater(() -> {
+                characterComboBox.setVisible(true);
+                detectGameWindowButton.setVisible(true);
+                detectGameWindowButton.setDisable(false);
+            });
         }
-    }
-
-    private boolean isGameWindow(WinDef.HWND hWnd, String title) {
-        char[] className = new char[256];
-        User32.INSTANCE.GetClassName(hWnd, className, 256);
-        String windowClass = new String(className).trim();
-
-        return windowClass.equals("UnrealWindow") ||
-                windowClass.equals("Lineage") ||
-                (windowClass.startsWith("WindowsForms") && title.matches(".*[A-Za-z0-9_]{3,16}.*"));
-    }
-
-    @FXML
-    private void refreshCharacters() {
-        characterComboBox.getItems().clear();
-        User32.INSTANCE.EnumWindows((hWnd, arg) -> {
-            char[] windowText = new char[512];
-            User32.INSTANCE.GetWindowText(hWnd, windowText, 512);
-            String title = new String(windowText).trim();
-
-            if (!title.isEmpty() && isGameWindow(hWnd, title)) {
-                Platform.runLater(() -> {
-                    if (!characterComboBox.getItems().contains(title)) {
-                        characterComboBox.getItems().add(title);
-                    }
-                });
-            }
-            return true;
-        }, null);
-
-        Platform.runLater(() -> {
-            if (!characterComboBox.getItems().isEmpty()) {
-                characterComboBox.getSelectionModel().selectFirst();
-            } else {
-                log("Окна Lineage 2 не найдены. Убедитесь, что игра запущена.");
-            }
-        });
     }
 
     @FXML
     private void activateWindow() {
+        log("Метод activateWindow вызван");
         String selectedWindow = characterComboBox.getSelectionModel().getSelectedItem();
         if (selectedWindow != null) {
             WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, selectedWindow);
@@ -365,12 +576,23 @@ public class BotUIController {
 
     @FXML
     private void addAction() {
+        log("Метод addAction вызван");
         String actionType = skillComboBox.getSelectionModel().getSelectedItem();
         String keys = keysField.getText().trim();
         String condition = conditionComboBox.getSelectionModel().getSelectedItem();
+        long timerSeconds = 0;
+
         if (actionType == null || keys.isEmpty()) {
             log("Ошибка: скилл/действие или клавиши не выбраны");
             return;
+        }
+
+        if ("Таймер n сек".equals(condition)) {
+            timerSeconds = promptForTimerSeconds(actionType, 120);
+            if (timerSeconds == 0) {
+                log("Ошибка: время не указано или неверный формат");
+                return;
+            }
         }
 
         for (Action existingAction : actions) {
@@ -388,10 +610,11 @@ public class BotUIController {
             editingAction.setActionType(actionType);
             editingAction.setKeys(keys);
             editingAction.setCondition(condition);
+            editingAction.setTimerSeconds(timerSeconds);
             editingAction = null;
             editActionButton.setText("Редактировать");
         } else {
-            actions.add(new Action(actionType, keys, condition));
+            actions.add(new Action(actionType, keys, condition, timerSeconds));
         }
         clearActionFields();
         log("Скилл/действие добавлено/обновлено: " + actionType);
@@ -399,6 +622,7 @@ public class BotUIController {
 
     @FXML
     private void editAction() {
+        log("Метод editAction вызван");
         Action selectedAction = actionsTable.getSelectionModel().getSelectedItem();
         if (selectedAction != null) {
             skillComboBox.setValue(selectedAction.getActionType());
@@ -406,6 +630,15 @@ public class BotUIController {
             conditionComboBox.setValue(selectedAction.getCondition());
             capturedKeys.clear();
             capturedKeys.addAll(List.of(selectedAction.getKeys().split(",")));
+            if ("Таймер n сек".equals(selectedAction.getCondition())) {
+                long newSeconds = promptForTimerSeconds(selectedAction.getActionType(), selectedAction.getTimerSeconds());
+                if (newSeconds > 0) {
+                    selectedAction.setTimerSeconds(newSeconds);
+                } else if (newSeconds == 0) {
+                    log("Время не изменено");
+                    return;
+                }
+            }
             editingAction = selectedAction;
             editActionButton.setText("Сохранить");
         } else {
@@ -415,6 +648,7 @@ public class BotUIController {
 
     @FXML
     private void deleteAction() {
+        log("Метод deleteAction вызван");
         Action selectedAction = actionsTable.getSelectionModel().getSelectedItem();
         if (selectedAction != null) {
             actions.remove(selectedAction);
@@ -436,6 +670,7 @@ public class BotUIController {
 
     @FXML
     private void startBot() {
+        log("Метод startBot вызван");
         if (isRunning) return;
         isRunning = true;
 
@@ -495,6 +730,7 @@ public class BotUIController {
 
     @FXML
     private void stopBot() {
+        log("Метод stopBot вызван");
         if (!isRunning) return;
         isRunning = false;
 
@@ -512,40 +748,8 @@ public class BotUIController {
         Platform.runLater(() -> {
             hpProgressBar.setProgress(0);
             mpProgressBar.setProgress(0);
+            hpProgressBar.getStyleClass().remove("low");
         });
-    }
-
-    private void scheduleLogUpdate() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastLogUpdateTime > LOG_UPDATE_DELAY_MS) {
-            lastLogUpdateTime = currentTime;
-            Platform.runLater(this::updateLogDisplay);
-        }
-    }
-
-    private void updateLogDisplay() {
-        if (!isRunning) return;
-
-        synchronized (logBuffer) {
-            String currentText = logArea.getText();
-            String[] bufferLines = logBuffer.toString().split("\n");
-
-            if (bufferLines.length > MAX_LOG_LINES) {
-                int startIdx = bufferLines.length - MAX_LOG_LINES;
-                StringBuilder trimmed = new StringBuilder();
-                for (int i = startIdx; i < bufferLines.length; i++) {
-                    trimmed.append(bufferLines[i]).append("\n");
-                }
-                logBuffer.setLength(0);
-                logBuffer.append(trimmed);
-                currentText = trimmed.toString();
-            } else {
-                currentText = logBuffer.toString();
-            }
-
-            logArea.setText(currentText);
-            logArea.setScrollTop(Double.MAX_VALUE);
-        }
     }
 
     private void startHpMpUpdate(String characterWindow, int[] hpBar, int[] mpBar) {
@@ -611,9 +815,26 @@ public class BotUIController {
         }
     }
 
-    private void selectBar(TextField targetField, String barName) {
-        log("Нажмите левую кнопку мыши на начало полосы " + barName + ", затем правую для завершения.");
+    @FXML
+    private void selectHpBar() {
+        log("Метод selectHpBar вызван");
+        selectBar(hpBarField, "HP персонажа");
+    }
 
+    @FXML
+    private void selectMpBar() {
+        log("Метод selectMpBar вызван");
+        selectBar(mpBarField, "MP персонажа");
+    }
+
+    @FXML
+    private void selectMobHpBar() {
+        log("Метод selectMobHpBar вызван");
+        selectBar(mobHpBarField, "HP моба");
+    }
+
+    private void selectBar(TextField targetField, String barName) {
+        log("Выбор полосы " + barName + " начат");
         Popup popup = new Popup();
         Pane pane = new Pane();
         pane.setStyle("-fx-background-color: rgba(0, 0, 255, 0.1);");
@@ -639,14 +860,19 @@ public class BotUIController {
             zoomStage.setTitle("Лупа");
             zoomStage.initOwner(primaryStage);
 
-            javafx.event.EventHandler<javafx.scene.input.MouseEvent> mouseHandler = event -> {
+            pane.setOnMousePressed(event -> {
                 if (!selecting.get()) return;
-
                 Point currentPoint = MouseInfo.getPointerInfo().getLocation();
                 if (event.getButton() == MouseButton.PRIMARY && startPoint.get() == null) {
                     startPoint.set(currentPoint);
                     log("Начало полосы " + barName + " выбрано: " + currentPoint.x + "," + currentPoint.y);
-                } else if (event.getButton() == MouseButton.SECONDARY && startPoint.get() != null) {
+                }
+            });
+
+            pane.setOnMouseReleased(event -> {
+                if (!selecting.get()) return;
+                Point currentPoint = MouseInfo.getPointerInfo().getLocation();
+                if (event.getButton() == MouseButton.SECONDARY && startPoint.get() == null) {
                     endPoint.set(currentPoint);
                     selecting.set(false);
                     popup.hide();
@@ -664,11 +890,8 @@ public class BotUIController {
                     log("Полоса " + barName + " выбрана: " + x + "," + y + "," + width + "," + height);
                     Platform.runLater(() -> primaryStage.requestFocus());
                 }
-                pane.requestLayout();
-            };
+            });
 
-            pane.setOnMousePressed(mouseHandler);
-            pane.setOnMouseReleased(mouseHandler);
             pane.setOnMouseDragged(event -> {
                 if (selecting.get() && startPoint.get() != null) {
                     endPoint.set(MouseInfo.getPointerInfo().getLocation());
@@ -693,14 +916,8 @@ public class BotUIController {
     }
 
     @FXML
-    private void selectMobHpBar() { selectBar(mobHpBarField, "HP моба"); }
-    @FXML
-    private void selectHpBar() { selectBar(hpBarField, "HP персонажа"); }
-    @FXML
-    private void selectMpBar() { selectBar(mpBarField, "MP персонажа"); }
-
-    @FXML
     private void saveSettings() {
+        log("Метод saveSettings вызван");
         JSONObject settings = new JSONObject();
         settings.put("characterName", characterNameField.getText());
         settings.put("hpPercent", hpPercentField.getText());
@@ -712,6 +929,7 @@ public class BotUIController {
         settings.put("character", characterComboBox.getSelectionModel().getSelectedItem());
         settings.put("class", classComboBox.getSelectionModel().getSelectedItem() != null ?
                 classComboBox.getSelectionModel().getSelectedItem().getDisplayName() : "");
+        settings.put("theme", themeComboBox.getSelectionModel().getSelectedItem());
 
         JSONArray actionsJson = new JSONArray();
         for (Action action : actions) {
@@ -719,6 +937,9 @@ public class BotUIController {
             actionObj.put("actionType", action.getActionType());
             actionObj.put("keys", action.getKeys());
             actionObj.put("condition", action.getCondition());
+            if ("Таймер n сек".equals(action.getCondition())) {
+                actionObj.put("timerSeconds", action.getTimerSeconds());
+            }
             actionsJson.put(actionObj);
         }
         settings.put("actions", actionsJson);
@@ -733,6 +954,7 @@ public class BotUIController {
 
     @FXML
     private void loadSettings() {
+        log("Метод loadSettings вызван");
         try {
             String content = new String(Files.readAllBytes(Paths.get("settings.json")));
             JSONObject settings = new JSONObject(content);
@@ -748,7 +970,7 @@ public class BotUIController {
             String character = settings.optString("character", "");
             if (!character.isEmpty()) {
                 characterComboBox.getItems().add(character);
-                characterComboBox.getSelectionModel().selectFirst();
+                characterComboBox.getSelectionModel().select(character);
                 activateWindow();
             }
 
@@ -763,15 +985,21 @@ public class BotUIController {
                 }
             }
 
+            String theme = settings.optString("theme", "Светлая");
+            themeComboBox.getSelectionModel().select(theme);
+            switchTheme(theme);
+
             actions.clear();
             try {
                 JSONArray actionsJson = settings.getJSONArray("actions");
                 for (int i = 0; i < actionsJson.length(); i++) {
                     JSONObject actionObj = actionsJson.getJSONObject(i);
+                    long timerSeconds = actionObj.optLong("timerSeconds", 0);
                     actions.add(new Action(
                             actionObj.optString("actionType", ""),
                             actionObj.optString("keys", ""),
-                            actionObj.optString("condition", "Нет")
+                            actionObj.optString("condition", "Нет"),
+                            timerSeconds
                     ));
                 }
             } catch (Exception e) {
@@ -782,13 +1010,8 @@ public class BotUIController {
             log("Настройки загружены из settings.json");
         } catch (IOException e) {
             log("Ошибка загрузки настроек: файл settings.json не найден");
-        }
-    }
-
-    private void log(String message) {
-        synchronized (logBuffer) {
-            logBuffer.append(message).append("\n");
-            scheduleLogUpdate();
+            themeComboBox.getSelectionModel().select("Светлая");
+            switchTheme("Светлая");
         }
     }
 
@@ -796,11 +1019,13 @@ public class BotUIController {
         private final SimpleStringProperty actionType;
         private final SimpleStringProperty keys;
         private final SimpleStringProperty condition;
+        private long timerSeconds;
 
-        public Action(String actionType, String keys, String condition) {
+        public Action(String actionType, String keys, String condition, long timerSeconds) {
             this.actionType = new SimpleStringProperty(actionType);
             this.keys = new SimpleStringProperty(keys);
             this.condition = new SimpleStringProperty(condition);
+            this.timerSeconds = timerSeconds;
         }
 
         public String getActionType() {
@@ -815,6 +1040,10 @@ public class BotUIController {
             return condition.get();
         }
 
+        public long getTimerSeconds() {
+            return timerSeconds;
+        }
+
         public void setActionType(String actionType) {
             this.actionType.set(actionType);
         }
@@ -825,6 +1054,10 @@ public class BotUIController {
 
         public void setCondition(String condition) {
             this.condition.set(condition);
+        }
+
+        public void setTimerSeconds(long timerSeconds) {
+            this.timerSeconds = timerSeconds;
         }
 
         public SimpleStringProperty actionTypeProperty() {

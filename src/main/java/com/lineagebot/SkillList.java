@@ -458,7 +458,7 @@ public class SkillList {
                 new Skill("Demon Wind"),
                 new Skill("Elemental Assault"),
                 new Skill("Star Fall"),
-                new Skill("Arcane Chaos"),
+                new Skill("Empowering Echo"),
                 new Skill("Storm Magic")
         )));
         CLASS_SKILLS.put(ClassId.SPECTRAL_MASTER, new ArrayList<>(Arrays.asList(
