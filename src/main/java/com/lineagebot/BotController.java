@@ -20,7 +20,6 @@ public class BotController {
     private final StringProperty log = new SimpleStringProperty("");
     private final String characterWindow;
     private final ObservableList<BotUIController.Action> actions;
-    private final ObservableList<Skill> skills;
     private final int[] hpBar;
     private final int[] mpBar;
     private final int[] mobHpBar;
@@ -36,7 +35,6 @@ public class BotController {
         this.mpPercent = mpPercent / 100.0;
         this.characterWindow = characterWindow;
         this.actions = actions;
-        this.skills = skills;
         this.hpBar = hpBar;
         this.mpBar = mpBar;
         this.mobHpBar = mobHpBar;
@@ -60,70 +58,68 @@ public class BotController {
                         continue;
                     }
 
-                    // Выполняем поиск следующей цели
-                    String targetKeys = getActionKeys("Поиск Моба");
-                    if (targetKeys.isEmpty()) {
-                        targetKeys = "F1"; // Дефолтная клавиша для поиска цели
-                        log("⚠️ Используется дефолтная клавиша для поиска цели: F1");
-                    }
-                    synchronized (lock) {
-                        for (String key : targetKeys.split(",")) {
-                            arduino.sendCommand("PRESS_KEY:" + key.trim());
-                            log("🔍 Выполняется поиск цели: " + key.trim());
-                            Thread.sleep(300 + random.nextInt(100));
-                        }
-                    }
-
-                    // Проверяем, найдена ли цель
+                    // Чтение HP моба
                     double currentMobHP;
                     synchronized (lock) {
                         currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
                     }
+
+                    // Проверка состояния персонажа
+                    checkPlayerStatus();
+
+                    // Если моба нет, используем Next Target
                     if (currentMobHP <= 0.05) {
-                        log("⚠️ Цель не найдена, повторный поиск...");
+                        String targetKey = getActionKeys("Next Target");
+                        if (targetKey.isEmpty()) {
+                            targetKey = "TAB"; // Дефолт для таргетинга
+                            log("⚠️ Используется дефолтная клавиша для поиска цели: TAB");
+                        }
+                        synchronized (lock) {
+                            for (String key : targetKey.split(",")) {
+                                arduino.sendCommand("PRESS_KEY:" + key.trim());
+                                log("🔍 Поиск следующей цели: " + key.trim());
+                                Thread.sleep(300 + random.nextInt(100));
+                            }
+                        }
                         Thread.sleep(1000);
                         continue;
                     }
+
                     log("❤️ HP моба: " + String.format("%.1f%%", currentMobHP * 100));
 
-                    // Выполняем атаку
-                    String attackKeys = getActionKeys("Атака моба");
-                    if (attackKeys.isEmpty()) {
-                        attackKeys = "F2"; // Дефолтная клавиша для атаки
-                        log("⚠️ Используется дефолтная клавиша для атаки: F2");
-                    }
-                    synchronized (lock) {
-                        for (String key : attackKeys.split(",")) {
-                            arduino.sendCommand("PRESS_KEY:" + key.trim());
-                            log("⚔️ Атака начата: " + key.trim());
-                            Thread.sleep(300 + random.nextInt(100));
-                        }
-                    }
-
-                    // Основной цикл атаки
+                    // Если моб найден, используем Auto Attack или случайный скилл
                     int attackAttempts = 0;
                     while (currentMobHP > 0.05 && attackAttempts < 8 && running) {
-                        // Используем случайный скилл из списка
-                        if (!skills.isEmpty()) {
-                            Skill skill = skills.get(random.nextInt(skills.size()));
-                            String skillKey = getSkillKey(skill.getName());
-                            if (!skillKey.isEmpty()) {
-                                synchronized (lock) {
-                                    for (String key : skillKey.split(",")) {
-                                        arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                        log("🪄 Использование скилла '" + skill.getName() + "': " + key.trim());
-                                        Thread.sleep(300 + random.nextInt(100));
-                                    }
+                        // Используем Auto Attack
+                        String autoAttackKey = getActionKeys("Auto Attack");
+                        if (!autoAttackKey.isEmpty()) {
+                            synchronized (lock) {
+                                for (String key : autoAttackKey.split(",")) {
+                                    arduino.sendCommand("PRESS_KEY:" + key.trim());
+                                    log("⚔️ Авто атака: " + key.trim());
+                                    Thread.sleep(300 + random.nextInt(100));
                                 }
                             }
+                        } else {
+                            log("⚠️ Auto Attack не назначен, пропуск атаки");
                         }
 
-                        // Повторяем атаку
-                        synchronized (lock) {
-                            for (String key : attackKeys.split(",")) {
-                                arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                log("⚔️ Атака (" + (attackAttempts + 1) + "/8): " + key.trim());
-                                Thread.sleep(300 + random.nextInt(100));
+                        // Используем случайный скилл из actions
+                        List<BotUIController.Action> availableSkills = actions.stream()
+                                .filter(action -> !action.getActionType().equals("Auto Attack") &&
+                                        !action.getActionType().equals("Next Target") &&
+                                        !action.getActionType().equals("Low HP") &&
+                                        !action.getActionType().equals("Low MP"))
+                                .collect(Collectors.toList());
+                        if (!availableSkills.isEmpty()) {
+                            BotUIController.Action action = availableSkills.get(random.nextInt(availableSkills.size()));
+                            String skillKey = action.getKeys();
+                            synchronized (lock) {
+                                for (String key : skillKey.split(",")) {
+                                    arduino.sendCommand("PRESS_KEY:" + key.trim());
+                                    log("🪄 Использование скилла '" + action.getActionType() + "': " + key.trim());
+                                    Thread.sleep(300 + random.nextInt(100));
+                                }
                             }
                         }
 
@@ -136,25 +132,12 @@ public class BotController {
                         Thread.sleep(500 + random.nextInt(200));
                     }
 
-                    // Если моб мертв
+                    // Если моб мёртв
                     if (currentMobHP <= 0.05) {
                         log("✅ Моб убит! Ждём 1 секунду...");
                         Thread.sleep(1000);
-
-                        String deadKeys = getActionKeys("Моб убит");
-                        if (!deadKeys.isEmpty()) {
-                            synchronized (lock) {
-                                for (String key : deadKeys.split(",")) {
-                                    arduino.sendCommand("PRESS_KEY:" + key.trim());
-                                    log("🔄 Действие после убийства: " + key.trim());
-                                    Thread.sleep(300 + random.nextInt(100));
-                                }
-                            }
-                        }
                     }
 
-                    // Проверяем состояние персонажа
-                    checkPlayerStatus();
                     Thread.sleep(1000 + random.nextInt(500));
 
                 } catch (InterruptedException e) {
@@ -175,8 +158,8 @@ public class BotController {
 
     private void checkPlayerStatus() {
         try {
-            String mpKey = getActionKeys("Низкое MP");
-            String hpKey = getActionKeys("Низкое HP");
+            String mpKey = getActionKeys("Low MP");
+            String hpKey = getActionKeys("Low HP");
 
             if (!mpKey.isEmpty()) {
                 double playerMP;
@@ -239,16 +222,6 @@ public class BotController {
         return "";
     }
 
-    private String getSkillKey(String skillName) {
-        // Маппинг скиллов на клавиши (пример, можно настроить через UI или конфиг)
-        // Для упрощения используем F3-F12 для скиллов
-        int index = skills.indexOf(skills.stream().filter(s -> s.getName().equals(skillName)).findFirst().orElse(null));
-        if (index >= 0 && index < 10) {
-            return "F" + (3 + index);
-        }
-        return "";
-    }
-
     private boolean isWindowActive(String windowTitle) {
         String os = System.getProperty("os.name").toLowerCase();
         if (os.contains("win")) {
@@ -269,14 +242,6 @@ public class BotController {
     }
 
     public void loadClassSkills(ClassId classId, ObservableList<Skill> skills) {
-        skills.clear();
-        List<Skill> classSkills = SkillList.getSkillsForClass(classId);
-        if (classSkills.size() <= 4) {
-            log("⚠️ Внимание: для класса " + classId.getDisplayName() + " загружены дефолтные скиллы. Проверьте SkillList.java.");
-        } else {
-            log("Загружено " + classSkills.size() + " скиллов для класса " + classId.getDisplayName() + ": " +
-                    classSkills.stream().map(Skill::getName).collect(Collectors.joining(", ")));
-        }
-        skills.addAll(classSkills);
+        // Не используется
     }
 }

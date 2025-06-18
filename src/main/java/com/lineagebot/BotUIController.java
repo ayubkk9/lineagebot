@@ -22,9 +22,9 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Popup;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.geometry.Rectangle2D;
-import javafx.stage.Screen;
 import javafx.util.StringConverter;
 import org.json.JSONObject;
 
@@ -39,6 +39,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class BotUIController {
     @FXML private TextField characterNameField;
@@ -56,7 +57,7 @@ public class BotUIController {
     @FXML private TableView<Action> actionsTable;
     @FXML private TableColumn<Action, String> actionTypeColumn;
     @FXML private TableColumn<Action, String> keysColumn;
-    @FXML private ComboBox<String> actionTypeComboBox;
+    @FXML private ComboBox<String> skillComboBox;
     @FXML private TextField keysField;
     @FXML private Button addActionButton;
     @FXML private Button editActionButton;
@@ -70,8 +71,6 @@ public class BotUIController {
     @FXML private Button saveSettingsButton;
     @FXML private Button loadSettingsButton;
     @FXML private ComboBox<ClassId> classComboBox;
-    @FXML private TableView<Skill> availableSkillsTable;
-    @FXML private TableColumn<Skill, String> skillNameColumn;
 
     private static final int MAX_LOG_LINES = 100;
     private static final long LOG_UPDATE_DELAY_MS = 200;
@@ -82,7 +81,7 @@ public class BotUIController {
     private BotController botController;
     private Thread hpMpUpdateThread;
     private final ObservableList<Action> actions = FXCollections.observableArrayList();
-    private final ObservableList<Skill> selectedSkills = FXCollections.observableArrayList();
+    private final ObservableList<String> availableSkills = FXCollections.observableArrayList();
     private List<String> capturedKeys = new ArrayList<>();
     private Action editingAction;
     private Stage primaryStage;
@@ -97,7 +96,7 @@ public class BotUIController {
         actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
         keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
         actionsTable.setItems(actions);
-        actionTypeComboBox.getItems().addAll("Атака моба", "Моб убит", "Низкое HP", "Низкое MP", "Поиск Моба");
+
         hpPercentField.setText("30");
         mpPercentField.setText("30");
         hpBarField.setText("50,50,100,10");
@@ -128,7 +127,6 @@ public class BotUIController {
         refreshCharactersButton.setVisible(true);
         characterComboBox.setStyle("-fx-font-size: 12px; -fx-pref-width: 250px;");
 
-        // Инициализация ComboBox классов
         classComboBox.getItems().addAll(ClassId.getPlayableClasses());
         classComboBox.setConverter(new StringConverter<ClassId>() {
             @Override
@@ -145,47 +143,24 @@ public class BotUIController {
         });
         classComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
-                if (botController == null) {
-                    // Создаем временный botController для загрузки скиллов без запуска бота
-                    try {
-                        int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
-                        int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
-                        int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
-                        if (hpBar == null || mpBar == null || mobHpBar == null) {
-                            log("Ошибка: неверные координаты полос. Пожалуйста, проверьте настройки.");
-                            return;
-                        }
-                        botController = new BotController(
-                                arduinoPortComboBox.getSelectionModel().getSelectedItem() != null ?
-                                        arduinoPortComboBox.getSelectionModel().getSelectedItem() : "COM1",
-                                30.0, // Значение по умолчанию для hpPercent
-                                30.0, // Значение по умолчанию для mpPercent
-                                characterComboBox.getSelectionModel().getSelectedItem() != null ?
-                                        characterComboBox.getSelectionModel().getSelectedItem() : "",
-                                actions,
-                                selectedSkills,
-                                hpBar,
-                                mpBar,
-                                mobHpBar
-                        );
-                    } catch (Exception e) {
-                        log("Ошибка инициализации бота для загрузки скиллов: " + e.getMessage());
-                        return;
-                    }
-                }
-                botController.loadClassSkills(newVal, selectedSkills);
-                availableSkillsTable.setItems(selectedSkills);
-                log("Загружены скиллы для класса: " + newVal.getDisplayName());
+                loadSkillsForClass(newVal);
+                log("Выбран класс: " + newVal.getDisplayName());
             }
         });
 
-        // Инициализация таблицы скиллов
-        skillNameColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getName()));
-        availableSkillsTable.setItems(selectedSkills);
+        skillComboBox.setItems(availableSkills);
+    }
+
+    private void loadSkillsForClass(ClassId classId) {
+        availableSkills.clear();
+        List<Skill> classSkills = SkillList.getSkillsForClass(classId);
+        availableSkills.addAll(classSkills.stream().map(Skill::getName).collect(Collectors.toList()));
+        availableSkills.addAll(Arrays.asList("Auto Attack", "Next Target", "Low HP", "Low MP"));
+        log("Загружено " + availableSkills.size() + " скиллов и действий для класса " + classId.getDisplayName());
     }
 
     private void setupHotKeys() {
-        // Пустая реализация, так как горячие клавиши не требуются по текущим требованиям
+        // Пустая реализация
     }
 
     private void validatePercentField(TextField field) {
@@ -356,17 +331,16 @@ public class BotUIController {
 
     @FXML
     private void addAction() {
-        String actionType = actionTypeComboBox.getSelectionModel().getSelectedItem();
+        String actionType = skillComboBox.getSelectionModel().getSelectedItem();
         String keys = keysField.getText().trim();
         if (actionType == null || keys.isEmpty()) {
-            log("Ошибка: тип действия или клавиши не выбраны");
+            log("Ошибка: скилл/действие или клавиши не выбраны");
             return;
         }
 
-        // Проверка уникальности клавиш
         for (Action existingAction : actions) {
             if (existingAction.getActionType().equals(actionType)) {
-                log("Ошибка: действие '" + actionType + "' уже существует");
+                log("Ошибка: скилл/действие '" + actionType + "' уже существует");
                 return;
             }
             if (editingAction != existingAction && existingAction.getKeys().equals(keys)) {
@@ -384,21 +358,21 @@ public class BotUIController {
             actions.add(new Action(actionType, keys));
         }
         clearActionFields();
-        log("Действие добавлено/обновлено: " + actionType);
+        log("Скилл/действие добавлено/обновлено: " + actionType);
     }
 
     @FXML
     private void editAction() {
         Action selectedAction = actionsTable.getSelectionModel().getSelectedItem();
         if (selectedAction != null) {
-            actionTypeComboBox.setValue(selectedAction.getActionType());
+            skillComboBox.setValue(selectedAction.getActionType());
             keysField.setText(selectedAction.getKeys());
             capturedKeys.clear();
             capturedKeys.addAll(List.of(selectedAction.getKeys().split(",")));
             editingAction = selectedAction;
             editActionButton.setText("Сохранить");
         } else {
-            log("Выберите действие для редактирования");
+            log("Выберите скилл/действие для редактирования");
         }
     }
 
@@ -408,16 +382,16 @@ public class BotUIController {
         if (selectedAction != null) {
             actions.remove(selectedAction);
             clearActionFields();
-            log("Действие удалено");
+            log("Скилл/действие удалено");
         } else {
-            log("Выберите действие для удаления");
+            log("Выберите скилл/действие для удаления");
         }
     }
 
     private void clearActionFields() {
         keysField.setText("");
         capturedKeys.clear();
-        actionTypeComboBox.getSelectionModel().clearSelection();
+        skillComboBox.getSelectionModel().clearSelection();
         editingAction = null;
         editActionButton.setText("Редактировать");
     }
@@ -455,7 +429,7 @@ public class BotUIController {
             }
 
             botController = new BotController(arduinoPort, hpPercent, mpPercent,
-                    selectedCharacter, actions, selectedSkills, hpBar, mpBar, mobHpBar);
+                    selectedCharacter, actions, FXCollections.observableArrayList(), hpBar, mpBar, mobHpBar);
 
             botController.logProperty().addListener((obs, oldVal, newVal) -> {
                 if (newVal != null && !newVal.isEmpty()) {
@@ -743,10 +717,8 @@ public class BotUIController {
 
             actions.clear();
             JSONObject actionsJson = settings.getJSONObject("actions");
-            for (String actionType : actionTypeComboBox.getItems()) {
-                if (actionsJson.has(actionType)) {
-                    actions.add(new Action(actionType, actionsJson.getString(actionType)));
-                }
+            for (String key : actionsJson.keySet()) {
+                actions.add(new Action(key, actionsJson.getString(key)));
             }
 
             log("Настройки загружены из settings.json");
