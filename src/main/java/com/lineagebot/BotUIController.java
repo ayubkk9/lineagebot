@@ -26,6 +26,7 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.geometry.Rectangle2D;
 import javafx.util.StringConverter;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.awt.*;
@@ -57,8 +58,10 @@ public class BotUIController {
     @FXML private TableView<Action> actionsTable;
     @FXML private TableColumn<Action, String> actionTypeColumn;
     @FXML private TableColumn<Action, String> keysColumn;
+    @FXML private TableColumn<Action, String> conditionColumn;
     @FXML private ComboBox<String> skillComboBox;
     @FXML private TextField keysField;
+    @FXML private ComboBox<String> conditionComboBox;
     @FXML private Button addActionButton;
     @FXML private Button editActionButton;
     @FXML private Button deleteActionButton;
@@ -82,6 +85,7 @@ public class BotUIController {
     private Thread hpMpUpdateThread;
     private final ObservableList<Action> actions = FXCollections.observableArrayList();
     private final ObservableList<String> availableSkills = FXCollections.observableArrayList();
+    private final ObservableList<String> availableConditions = FXCollections.observableArrayList("Нет", "HP < n%", "MP < n%");
     private List<String> capturedKeys = new ArrayList<>();
     private Action editingAction;
     private Stage primaryStage;
@@ -95,6 +99,28 @@ public class BotUIController {
         stopButton.setDisable(true);
         actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
         keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
+        conditionColumn.setCellValueFactory(cellData -> cellData.getValue().conditionProperty());
+
+        // Настройка редактирования столбца "Условие выполнения"
+        conditionColumn.setCellFactory(column -> new TableCell<Action, String>() {
+            private final ComboBox<String> comboBox = new ComboBox<>(availableConditions);
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    comboBox.setValue(item != null ? item : "Нет");
+                    comboBox.setOnAction(event -> {
+                        Action action = getTableView().getItems().get(getIndex());
+                        action.setCondition(comboBox.getValue());
+                    });
+                    setGraphic(comboBox);
+                }
+            }
+        });
+
         actionsTable.setItems(actions);
 
         hpPercentField.setText("30");
@@ -149,6 +175,8 @@ public class BotUIController {
         });
 
         skillComboBox.setItems(availableSkills);
+        conditionComboBox.setItems(availableConditions);
+        conditionComboBox.getSelectionModel().select("Нет");
     }
 
     private void loadSkillsForClass(ClassId classId) {
@@ -333,6 +361,7 @@ public class BotUIController {
     private void addAction() {
         String actionType = skillComboBox.getSelectionModel().getSelectedItem();
         String keys = keysField.getText().trim();
+        String condition = conditionComboBox.getSelectionModel().getSelectedItem();
         if (actionType == null || keys.isEmpty()) {
             log("Ошибка: скилл/действие или клавиши не выбраны");
             return;
@@ -352,10 +381,11 @@ public class BotUIController {
         if (editingAction != null) {
             editingAction.setActionType(actionType);
             editingAction.setKeys(keys);
+            editingAction.setCondition(condition);
             editingAction = null;
             editActionButton.setText("Редактировать");
         } else {
-            actions.add(new Action(actionType, keys));
+            actions.add(new Action(actionType, keys, condition));
         }
         clearActionFields();
         log("Скилл/действие добавлено/обновлено: " + actionType);
@@ -367,6 +397,7 @@ public class BotUIController {
         if (selectedAction != null) {
             skillComboBox.setValue(selectedAction.getActionType());
             keysField.setText(selectedAction.getKeys());
+            conditionComboBox.setValue(selectedAction.getCondition());
             capturedKeys.clear();
             capturedKeys.addAll(List.of(selectedAction.getKeys().split(",")));
             editingAction = selectedAction;
@@ -392,6 +423,7 @@ public class BotUIController {
         keysField.setText("");
         capturedKeys.clear();
         skillComboBox.getSelectionModel().clearSelection();
+        conditionComboBox.getSelectionModel().select("Нет");
         editingAction = null;
         editActionButton.setText("Редактировать");
     }
@@ -669,9 +701,13 @@ public class BotUIController {
         settings.put("class", classComboBox.getSelectionModel().getSelectedItem() != null ?
                 classComboBox.getSelectionModel().getSelectedItem().getDisplayName() : "");
 
-        JSONObject actionsJson = new JSONObject();
+        JSONArray actionsJson = new JSONArray();
         for (Action action : actions) {
-            actionsJson.put(action.getActionType(), action.getKeys());
+            JSONObject actionObj = new JSONObject();
+            actionObj.put("actionType", action.getActionType());
+            actionObj.put("keys", action.getKeys());
+            actionObj.put("condition", action.getCondition());
+            actionsJson.put(actionObj);
         }
         settings.put("actions", actionsJson);
 
@@ -716,9 +752,14 @@ public class BotUIController {
             }
 
             actions.clear();
-            JSONObject actionsJson = settings.getJSONObject("actions");
-            for (String key : actionsJson.keySet()) {
-                actions.add(new Action(key, actionsJson.getString(key)));
+            JSONArray actionsJson = settings.getJSONArray("actions");
+            for (int i = 0; i < actionsJson.length(); i++) {
+                JSONObject actionObj = actionsJson.getJSONObject(i);
+                actions.add(new Action(
+                        actionObj.getString("actionType"),
+                        actionObj.getString("keys"),
+                        actionObj.optString("condition", "Нет")
+                ));
             }
 
             log("Настройки загружены из settings.json");
@@ -737,10 +778,12 @@ public class BotUIController {
     public static class Action {
         private final SimpleStringProperty actionType;
         private final SimpleStringProperty keys;
+        private final SimpleStringProperty condition;
 
-        public Action(String actionType, String keys) {
+        public Action(String actionType, String keys, String condition) {
             this.actionType = new SimpleStringProperty(actionType);
             this.keys = new SimpleStringProperty(keys);
+            this.condition = new SimpleStringProperty(condition);
         }
 
         public String getActionType() {
@@ -751,6 +794,10 @@ public class BotUIController {
             return keys.get();
         }
 
+        public String getCondition() {
+            return condition.get();
+        }
+
         public void setActionType(String actionType) {
             this.actionType.set(actionType);
         }
@@ -759,12 +806,20 @@ public class BotUIController {
             this.keys.set(keys);
         }
 
+        public void setCondition(String condition) {
+            this.condition.set(condition);
+        }
+
         public SimpleStringProperty actionTypeProperty() {
             return actionType;
         }
 
         public SimpleStringProperty keysProperty() {
             return keys;
+        }
+
+        public SimpleStringProperty conditionProperty() {
+            return condition;
         }
     }
 }

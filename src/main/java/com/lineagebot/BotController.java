@@ -7,6 +7,7 @@ import javafx.collections.ObservableList;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -64,8 +65,24 @@ public class BotController {
                         currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
                     }
 
-                    // Проверка состояния персонажа
-                    checkPlayerStatus();
+                    // Проверка состояния персонажа и выполнение условных скиллов
+                    List<BotUIController.Action> triggeredActions = checkPlayerStatus();
+                    if (!triggeredActions.isEmpty()) {
+                        // Выполняем приоритетные действия
+                        for (BotUIController.Action action : triggeredActions) {
+                            String keys = action.getKeys();
+                            synchronized (lock) {
+                                for (String key : keys.split(",")) {
+                                    arduino.sendCommand("PRESS_KEY:" + key.trim());
+                                    log("🪄 Приоритетный скилл '" + action.getActionType() + "' (" + action.getCondition() + "): " + key.trim());
+                                    Thread.sleep(300 + random.nextInt(100));
+                                }
+                            }
+                            Thread.sleep(500);
+                        }
+                        Thread.sleep(1000);
+                        continue;
+                    }
 
                     // Если моба нет, используем Next Target
                     if (currentMobHP <= 0.05) {
@@ -109,7 +126,8 @@ public class BotController {
                                 .filter(action -> !action.getActionType().equals("Auto Attack") &&
                                         !action.getActionType().equals("Next Target") &&
                                         !action.getActionType().equals("Low HP") &&
-                                        !action.getActionType().equals("Low MP"))
+                                        !action.getActionType().equals("Low MP") &&
+                                        action.getCondition().equals("Нет"))
                                 .collect(Collectors.toList());
                         if (!availableSkills.isEmpty()) {
                             BotUIController.Action action = availableSkills.get(random.nextInt(availableSkills.size()));
@@ -156,45 +174,55 @@ public class BotController {
         }).start();
     }
 
-    private void checkPlayerStatus() {
+    private List<BotUIController.Action> checkPlayerStatus() {
+        List<BotUIController.Action> triggeredActions = new ArrayList<>();
         try {
+            // Чтение текущих HP и MP
+            double playerHP;
+            double playerMP;
+            synchronized (lock) {
+                playerHP = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
+                playerMP = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
+            }
+
+            // Проверка Low HP и Low MP
             String mpKey = getActionKeys("Low MP");
             String hpKey = getActionKeys("Low HP");
 
-            if (!mpKey.isEmpty()) {
-                double playerMP;
+            if (!mpKey.isEmpty() && playerMP < mpPercent) {
                 synchronized (lock) {
-                    playerMP = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
-                }
-                if (playerMP < mpPercent) {
-                    synchronized (lock) {
-                        for (String key : mpKey.split(",")) {
-                            arduino.sendCommand("PRESS_KEY:" + key.trim());
-                            log("💧 Восстановление MP: " + key.trim());
-                            Thread.sleep(300 + random.nextInt(100));
-                        }
+                    for (String key : mpKey.split(",")) {
+                        arduino.sendCommand("PRESS_KEY:" + key.trim());
+                        log("💧 Восстановление MP: " + key.trim());
+                        Thread.sleep(300 + random.nextInt(100));
                     }
                 }
             }
 
-            if (!hpKey.isEmpty()) {
-                double playerHP;
+            if (!hpKey.isEmpty() && playerHP < hpPercent) {
                 synchronized (lock) {
-                    playerHP = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
-                }
-                if (playerHP < hpPercent) {
-                    synchronized (lock) {
-                        for (String key : hpKey.split(",")) {
-                            arduino.sendCommand("PRESS_KEY:" + key.trim());
-                            log("❤️ Восстановление HP: " + key.trim());
-                            Thread.sleep(300 + random.nextInt(100));
-                        }
+                    for (String key : hpKey.split(",")) {
+                        arduino.sendCommand("PRESS_KEY:" + key.trim());
+                        log("❤️ Восстановление HP: " + key.trim());
+                        Thread.sleep(300 + random.nextInt(100));
                     }
                 }
             }
+
+            // Проверка скиллов с условиями
+            for (BotUIController.Action action : actions) {
+                String condition = action.getCondition();
+                if (condition.equals("HP < n%") && playerHP < hpPercent) {
+                    triggeredActions.add(action);
+                } else if (condition.equals("MP < n%") && playerMP < mpPercent) {
+                    triggeredActions.add(action);
+                }
+            }
+
         } catch (Exception e) {
             log("❌ Ошибка проверки HP/MP: " + e.getMessage());
         }
+        return triggeredActions;
     }
 
     public void stopBot() {

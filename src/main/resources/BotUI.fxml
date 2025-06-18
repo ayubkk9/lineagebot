@@ -1,39 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.control.Button?>
-<?import javafx.scene.control.ComboBox?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.Tab?>
-<?import javafx.scene.control.TabPane?>
-<?import javafx.scene.control.TableColumn?>
-<?import javafx.scene.control.TableView?>
-<?import javafx.scene.control.TextArea?>
-<?import javafx.scene.control.TextField?>
-<?import javafx.scene.layout.AnchorPane?>
-<?import javafx.scene.layout.ColumnConstraints?>
-<?import javafx.scene.layout.GridPane?>
-<?import javafx.scene.layout.HBox?>
-<?import javafx.scene.layout.RowConstraints?>
-<?import javafx.scene.layout.VBox?>
 
-<AnchorPane prefHeight="600.0" prefWidth="800.0" styleClass="main-pane" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/23.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
+<AnchorPane prefHeight="600.0" prefWidth="800.0" styleClass="main-pane" stylesheets="@styles.css" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
     <children>
         <TabPane prefHeight="600.0" prefWidth="800.0" tabClosingPolicy="UNAVAILABLE">
             <tabs>
-                <Tab text="Основное">
+                <Tab text="Действия">
                     <content>
                         <VBox spacing="10.0" styleClass="skill-pane">
                             <children>
                                 <!-- Выбор персонажа -->
                                 <HBox spacing="10.0" VBox.vgrow="ALWAYS">
                                     <children>
-                                        <Label text="Ник:" />
-                                        <TextField fx:id="characterNameField" />
+                                        <Label text="Ник персонажа:" />
+                                        <TextField fx:id="characterNameField" prefWidth="150.0" />
                                         <Button fx:id="detectGameWindowButton" mnemonicParsing="false" onAction="#detectGameWindow" text="Найти окно" />
-                                        <ComboBox fx:id="characterComboBox" prefHeight="24.0" prefWidth="154.0" visible="true" />
+                                        <ComboBox fx:id="characterComboBox" prefWidth="250.0" visible="true" />
                                         <Button fx:id="refreshCharactersButton" mnemonicParsing="false" onAction="#refreshCharacters" text="Обновить" visible="true" />
-                                        <Button fx:id="activateWindowButton" mnemonicParsing="false" onAction="#activateWindow" prefWidth="95.0" text="Активировать" />
+                                        <Button fx:id="activateWindowButton" mnemonicParsing="false" onAction="#activateWindow" text="Активировать" />
                                     </children>
                                     <padding>
                                         <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
@@ -44,7 +31,7 @@
                                 <HBox spacing="10.0">
                                     <children>
                                         <Label text="Класс:" />
-                                        <ComboBox fx:id="classComboBox" prefHeight="24.0" prefWidth="220.0" />
+                                        <ComboBox fx:id="classComboBox" prefWidth="200.0" />
                                     </children>
                                     <padding>
                                         <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
@@ -54,10 +41,12 @@
                                 <!-- Настройка действий -->
                                 <HBox spacing="10.0">
                                     <children>
-                                        <Label text="Скиллы:" />
+                                        <Label text="Действие/Скилл:" />
                                         <ComboBox fx:id="skillComboBox" prefWidth="200.0" promptText="Выберите скилл или действие" />
                                         <Label text="Клавиши:" />
                                         <TextField fx:id="keysField" prefWidth="150.0" />
+                                        <Label text="Условие:" />
+                                        <ComboBox fx:id="conditionComboBox" prefWidth="150.0" promptText="Выберите условие" />
                                         <Button fx:id="addActionButton" mnemonicParsing="false" onAction="#addAction" text="Добавить" />
                                         <Button fx:id="editActionButton" mnemonicParsing="false" onAction="#editAction" text="Редактировать" />
                                         <Button fx:id="deleteActionButton" mnemonicParsing="false" onAction="#deleteAction" text="Удалить" />
@@ -70,8 +59,9 @@
                                 <!-- Таблица действий -->
                                 <TableView fx:id="actionsTable" prefHeight="200.0">
                                     <columns>
-                                        <TableColumn fx:id="actionTypeColumn" prefWidth="300.0" text="Действие/Скилл" />
-                                        <TableColumn fx:id="keysColumn" prefWidth="150.0" text="Клавиши" />
+                                        <TableColumn fx:id="actionTypeColumn" prefWidth="250.0" text="Действие/Скилл" />
+                                        <TableColumn fx:id="keysColumn" prefWidth="100.0" text="Клавиши" />
+                                        <TableColumn fx:id="conditionColumn" prefWidth="150.0" text="Условие выполнения" />
                                     </columns>
                                 </TableView>
 
@@ -92,26 +82,13 @@
                                         <Button fx:id="selectMpBarButton" mnemonicParsing="false" onAction="#selectMpBar" text="Выбрать полосу MP" GridPane.columnIndex="4" GridPane.rowIndex="1" />
                                         <TextField fx:id="mpBarField" prefWidth="150.0" GridPane.columnIndex="5" GridPane.rowIndex="1" />
 
-                                        <Label text="HP моба:" GridPane.rowIndex="2" />
+                                        <Label text="HP моба:" GridPane.columnIndex="0" GridPane.rowIndex="2" />
                                         <Button fx:id="selectMobHpBarButton" mnemonicParsing="false" onAction="#selectMobHpBar" text="Выбрать полосу HP моба" GridPane.columnIndex="4" GridPane.rowIndex="2" />
                                         <TextField fx:id="mobHpBarField" prefWidth="150.0" GridPane.columnIndex="5" GridPane.rowIndex="2" />
                                     </children>
                                     <padding>
                                         <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
                                     </padding>
-                           <columnConstraints>
-                              <ColumnConstraints />
-                              <ColumnConstraints />
-                              <ColumnConstraints />
-                              <ColumnConstraints />
-                              <ColumnConstraints />
-                              <ColumnConstraints />
-                           </columnConstraints>
-                           <rowConstraints>
-                              <RowConstraints />
-                              <RowConstraints />
-                              <RowConstraints />
-                           </rowConstraints>
                                 </GridPane>
 
                                 <!-- Arduino и управление ботом -->
