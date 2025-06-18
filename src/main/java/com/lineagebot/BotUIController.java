@@ -74,6 +74,8 @@ public class BotUIController {
     @FXML private Button saveSettingsButton;
     @FXML private Button loadSettingsButton;
     @FXML private ComboBox<ClassId> classComboBox;
+    @FXML private ProgressBar hpProgressBar;
+    @FXML private ProgressBar mpProgressBar;
 
     private static final int MAX_LOG_LINES = 100;
     private static final long LOG_UPDATE_DELAY_MS = 200;
@@ -177,12 +179,16 @@ public class BotUIController {
         skillComboBox.setItems(availableSkills);
         conditionComboBox.setItems(availableConditions);
         conditionComboBox.getSelectionModel().select("Нет");
+
+        // Инициализация прогресс-баров
+        hpProgressBar.setProgress(0);
+        mpProgressBar.setProgress(0);
     }
 
     private void loadSkillsForClass(ClassId classId) {
         availableSkills.clear();
         List<Skill> classSkills = SkillList.getSkillsForClass(classId);
-        availableSkills.addAll(classSkills.stream().map(Skill::getName).collect(Collectors.toList()));
+        availableSkills.addAll(classSkills.stream().map(Skill::getName).toList());
         availableSkills.addAll(Arrays.asList("Auto Attack", "Next Target", "Low HP", "Low MP"));
         log("Загружено " + availableSkills.size() + " скиллов и действий для класса " + classId.getDisplayName());
     }
@@ -503,6 +509,10 @@ public class BotUIController {
 
         startButton.setDisable(false);
         stopButton.setDisable(true);
+        Platform.runLater(() -> {
+            hpProgressBar.setProgress(0);
+            mpProgressBar.setProgress(0);
+        });
     }
 
     private void scheduleLogUpdate() {
@@ -558,6 +568,8 @@ public class BotUIController {
                     Platform.runLater(() -> {
                         hpDisplayField.setText(String.format("%.1f%%", hpLevel * 100));
                         mpDisplayField.setText(String.format("%.1f%%", mpLevel * 100));
+                        hpProgressBar.setProgress(hpLevel);
+                        mpProgressBar.setProgress(mpLevel);
                     });
                     Thread.sleep(2000);
                 } catch (InterruptedException e) {
@@ -726,12 +738,12 @@ public class BotUIController {
             JSONObject settings = new JSONObject(content);
 
             characterNameField.setText(settings.optString("characterName", ""));
-            hpPercentField.setText(settings.getString("hpPercent"));
-            mpPercentField.setText(settings.getString("mpPercent"));
-            hpBarField.setText(settings.getString("hpBar"));
-            mpBarField.setText(settings.getString("mpBar"));
-            mobHpBarField.setText(settings.getString("mobHpBar"));
-            arduinoPortComboBox.getSelectionModel().select(settings.getString("arduinoPort"));
+            hpPercentField.setText(settings.optString("hpPercent", "30"));
+            mpPercentField.setText(settings.optString("mpPercent", "30"));
+            hpBarField.setText(settings.optString("hpBar", "50,50,100,10"));
+            mpBarField.setText(settings.optString("mpBar", "50,80,100,10"));
+            mobHpBarField.setText(settings.optString("mobHpBar", "200,100,50,10"));
+            arduinoPortComboBox.getSelectionModel().select(settings.optString("arduinoPort", null));
 
             String character = settings.optString("character", "");
             if (!character.isEmpty()) {
@@ -752,14 +764,19 @@ public class BotUIController {
             }
 
             actions.clear();
-            JSONArray actionsJson = settings.getJSONArray("actions");
-            for (int i = 0; i < actionsJson.length(); i++) {
-                JSONObject actionObj = actionsJson.getJSONObject(i);
-                actions.add(new Action(
-                        actionObj.getString("actionType"),
-                        actionObj.getString("keys"),
-                        actionObj.optString("condition", "Нет")
-                ));
+            try {
+                JSONArray actionsJson = settings.getJSONArray("actions");
+                for (int i = 0; i < actionsJson.length(); i++) {
+                    JSONObject actionObj = actionsJson.getJSONObject(i);
+                    actions.add(new Action(
+                            actionObj.optString("actionType", ""),
+                            actionObj.optString("keys", ""),
+                            actionObj.optString("condition", "Нет")
+                    ));
+                }
+            } catch (Exception e) {
+                log("Ошибка загрузки действий: поле 'actions' не является массивом или отсутствует. Очищаем список действий.");
+                actions.clear();
             }
 
             log("Настройки загружены из settings.json");
