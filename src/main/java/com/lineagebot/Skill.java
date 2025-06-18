@@ -1,56 +1,31 @@
 package com.lineagebot;
 
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleStringProperty;
-
 public class Skill {
-    private final SimpleStringProperty name;
-    private final SimpleStringProperty type;
-    private final SimpleIntegerProperty mpCost;
-    private final SimpleIntegerProperty cooldown;
-    private final String keys;
+    private final String name;
 
-    public Skill(String name, String type, int mpCost, int cooldown, String keys) {
-        this.name = new SimpleStringProperty(name);
-        this.type = new SimpleStringProperty(type);
-        this.mpCost = new SimpleIntegerProperty(mpCost);
-        this.cooldown = new SimpleIntegerProperty(cooldown);
-        this.keys = keys;
+    public Skill(String name) {
+        this.name = name;
     }
 
     public String getName() {
-        return name.get();
-    }
-
-    public SimpleStringProperty nameProperty() {
         return name;
     }
 
-    public String getType() {
-        return type.get();
+    @Override
+    public String toString() {
+        return name;
     }
 
-    public SimpleStringProperty typeProperty() {
-        return type;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Skill skill = (Skill) o;
+        return name.equals(skill.name);
     }
 
-    public int getMpCost() {
-        return mpCost.get();
-    }
-
-    public SimpleIntegerProperty mpCostProperty() {
-        return mpCost;
-    }
-
-    public int getCooldown() {
-        return cooldown.get();
-    }
-
-    public SimpleIntegerProperty cooldownProperty() {
-        return cooldown;
-    }
-
-    public String getKeys() {
-        return keys;
+    @Override
+    public int hashCode() {
+        return name.hashCode();
     }
 }

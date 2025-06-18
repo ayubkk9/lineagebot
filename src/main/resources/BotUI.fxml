@@ -93,11 +93,6 @@
                     <Label text="Клавиши:"/>
                     <TextField fx:id="newSkillKeysField" prefWidth="100"/>
                 </HBox>
-                <HBox spacing="10">
-                    <Button fx:id="addSkillButton" text="Добавить скилл" onAction="#addSkill"/>
-                    <Button fx:id="editSkillButton" text="Редактировать скилл" onAction="#editSkill"/>
-                    <Button fx:id="deleteSkillButton" text="Удалить скилл" onAction="#deleteSkill"/>
-                </HBox>
                 <TableView fx:id="availableSkillsTable">
                     <columns>
                         <TableColumn fx:id="skillNameColumn" text="Название" prefWidth="150"/>

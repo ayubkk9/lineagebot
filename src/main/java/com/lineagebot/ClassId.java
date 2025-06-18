@@ -1,32 +1,50 @@
 package com.lineagebot;
 
 public enum ClassId {
-    DARK_AVENGER("Dark Avenger"),
-    PALADIN("Paladin"),
-    GLADIATOR("Gladiator"),
-    SPELLSINGER("Spellsinger"),
-    SPELLHOWLER("Spellhowler"),
-    NECROMANCER("Necromancer"),
-    BISHOP("Bishop"),
-    PROPHET("Prophet"),
-    SWORD_SINGER("Sword Singer"),
-    TEMPLE_KNIGHT("Temple Knight"),
-    SHILLIEN_KNIGHT("Shillien Knight"),
-    BLADEDANCER("Bladedancer"),
-    HAWKEYE("Hawkeye"),
-    SILVER_RANGER("Silver Ranger"),
-    PHANTOM_RANGER("Phantom Ranger"),
-    ABYSS_WALKER("Abyss Walker"),
-    PLAINS_WALKER("Plains Walker"),
-    TREASURE_HUNTER("Treasure Hunter"),
-    WARLOCK("Warlock"),
-    SORCERER("Sorcerer"),
-    WARCRYER("Warcryer"),
-    OVERLORD("Overlord"),
-    DESTROYER("Destroyer"),
-    TYRANT("Tyrant"),
-    BOUNTY_HUNTER("Bounty Hunter"),
-    WARSMITH("Warsmith");
+    // Human Fighter -> Third Professions
+    DUELIST("Duelist"),
+    DREADNOUGHT("Dreadnought"),
+    PHOENIX_KNIGHT("Phoenix Knight"),
+    HELL_KNIGHT("Hell Knight"),
+
+    // Human Mystic -> Third Professions
+    ARCHMAGE("Archmage"),
+    SOULTAKER("Soultaker"),
+    ARCANA_LORD("Arcana Lord"),
+    CARDINAL("Cardinal"),
+    HIEROPHANT("Hierophant"),
+
+    // Elf Fighter -> Third Professions
+    EVAS_TEMPLAR("Eva's Templar"),
+    SWORD_MUSE("Sword Muse"),
+    WIND_RIDER("Wind Rider"),
+    MOONLIGHT_SENTINEL("Moonlight Sentinel"),
+
+    // Elf Mystic -> Third Professions
+    MYSTIC_MUSE("Mystic Muse"),
+    ELEMENTAL_MASTER("Elemental Master"),
+
+    // Dark Elf Fighter -> Third Professions
+    SHILLIEN_TEMPLAR("Shillien Templar"),
+    SPECTRAL_DANCER("Spectral Dancer"),
+    GHOST_HUNTER("Ghost Hunter"),
+    GHOST_SENTINEL("Ghost Sentinel"),
+
+    // Dark Elf Mystic -> Third Professions
+    STORM_SCREAMER("Storm Screamer"),
+    SPECTRAL_MASTER("Spectral Master"),
+
+    // Orc Fighter -> Third Professions
+    TITAN("Titan"),
+    GRAND_KHAVATARI("Grand Khavatari"),
+
+    // Orc Mystic -> Third Professions
+    DOMINATOR("Dominator"),
+    DOOMCRYER("Doomcryer"),
+
+    // Dwarf Fighter -> Third Professions
+    FORTUNE_SEEKER("Fortune Seeker"),
+    MAESTRO("Maestro");
 
     private final String displayName;
 
@@ -40,15 +58,15 @@ public enum ClassId {
 
     public static ClassId[] getPlayableClasses() {
         return new ClassId[] {
-                DARK_AVENGER, PALADIN, GLADIATOR,
-                SPELLSINGER, SPELLHOWLER, NECROMANCER,
-                BISHOP, PROPHET, SWORD_SINGER,
-                TEMPLE_KNIGHT, SHILLIEN_KNIGHT, BLADEDANCER,
-                HAWKEYE, SILVER_RANGER, PHANTOM_RANGER,
-                ABYSS_WALKER, PLAINS_WALKER, TREASURE_HUNTER,
-                WARLOCK, SORCERER, WARCRYER,
-                OVERLORD, DESTROYER, TYRANT,
-                BOUNTY_HUNTER, WARSMITH
+                DUELIST, DREADNOUGHT, PHOENIX_KNIGHT, HELL_KNIGHT,
+                ARCHMAGE, SOULTAKER, ARCANA_LORD, CARDINAL, HIEROPHANT,
+                EVAS_TEMPLAR, SWORD_MUSE, WIND_RIDER, MOONLIGHT_SENTINEL,
+                MYSTIC_MUSE, ELEMENTAL_MASTER,
+                SHILLIEN_TEMPLAR, SPECTRAL_DANCER, GHOST_HUNTER, GHOST_SENTINEL,
+                STORM_SCREAMER, SPECTRAL_MASTER,
+                TITAN, GRAND_KHAVATARI,
+                DOMINATOR, DOOMCRYER,
+                FORTUNE_SEEKER, MAESTRO
         };
     }
 }

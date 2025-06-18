@@ -72,18 +72,6 @@ public class BotUIController {
     @FXML private ComboBox<ClassId> classComboBox;
     @FXML private TableView<Skill> availableSkillsTable;
     @FXML private TableColumn<Skill, String> skillNameColumn;
-    @FXML private TableColumn<Skill, String> skillTypeColumn;
-    @FXML private TableColumn<Skill, Number> skillMpColumn;
-    @FXML private TableColumn<Skill, Number> skillCooldownColumn;
-    @FXML private TableColumn<Skill, String> skillKeysColumn;
-    @FXML private TextField newSkillNameField;
-    @FXML private ComboBox<String> newSkillTypeCombo;
-    @FXML private TextField newSkillMpField;
-    @FXML private TextField newSkillCooldownField;
-    @FXML private TextField newSkillKeysField;
-    @FXML private Button addSkillButton;
-    @FXML private Button editSkillButton;
-    @FXML private Button deleteSkillButton;
 
     private static final int MAX_LOG_LINES = 100;
     private static final long LOG_UPDATE_DELAY_MS = 200;
@@ -97,7 +85,6 @@ public class BotUIController {
     private final ObservableList<Skill> selectedSkills = FXCollections.observableArrayList();
     private List<String> capturedKeys = new ArrayList<>();
     private Action editingAction;
-    private Skill editingSkill;
     private Stage primaryStage;
 
     public void setPrimaryStage(Stage stage) {
@@ -132,17 +119,8 @@ public class BotUIController {
             keysField.requestFocus();
         });
 
-        newSkillKeysField.setOnKeyPressed(this::handleSkillKeyPress);
-        newSkillKeysField.setOnMouseClicked(event -> {
-            capturedKeys.clear();
-            newSkillKeysField.setText("");
-            newSkillKeysField.requestFocus();
-        });
-
         validatePercentField(hpPercentField);
         validatePercentField(mpPercentField);
-        validateNumericField(newSkillMpField, "MP скилла");
-        validateNumericField(newSkillCooldownField, "Перезарядка скилла");
         limitLogArea();
         setupHotKeys();
 
@@ -166,41 +144,48 @@ public class BotUIController {
             }
         });
         classComboBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && botController != null) {
+            if (newVal != null) {
+                if (botController == null) {
+                    // Создаем временный botController для загрузки скиллов без запуска бота
+                    try {
+                        int[] hpBar = parseCoordinates(hpBarField.getText(), "HP персонажа");
+                        int[] mpBar = parseCoordinates(mpBarField.getText(), "MP персонажа");
+                        int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "HP моба");
+                        if (hpBar == null || mpBar == null || mobHpBar == null) {
+                            log("Ошибка: неверные координаты полос. Пожалуйста, проверьте настройки.");
+                            return;
+                        }
+                        botController = new BotController(
+                                arduinoPortComboBox.getSelectionModel().getSelectedItem() != null ?
+                                        arduinoPortComboBox.getSelectionModel().getSelectedItem() : "COM1",
+                                30.0, // Значение по умолчанию для hpPercent
+                                30.0, // Значение по умолчанию для mpPercent
+                                characterComboBox.getSelectionModel().getSelectedItem() != null ?
+                                        characterComboBox.getSelectionModel().getSelectedItem() : "",
+                                actions,
+                                selectedSkills,
+                                hpBar,
+                                mpBar,
+                                mobHpBar
+                        );
+                    } catch (Exception e) {
+                        log("Ошибка инициализации бота для загрузки скиллов: " + e.getMessage());
+                        return;
+                    }
+                }
                 botController.loadClassSkills(newVal, selectedSkills);
                 availableSkillsTable.setItems(selectedSkills);
                 log("Загружены скиллы для класса: " + newVal.getDisplayName());
-            } else if (newVal != null) {
-                log("Ошибка: бот не инициализирован. Запустите бот перед выбором класса.");
             }
         });
-        if (!classComboBox.getItems().isEmpty()) {
-            classComboBox.getSelectionModel().selectFirst();
-        }
 
         // Инициализация таблицы скиллов
-        skillNameColumn.setCellValueFactory(cellData -> cellData.getValue().nameProperty());
-        skillTypeColumn.setCellValueFactory(cellData -> cellData.getValue().typeProperty());
-        skillMpColumn.setCellValueFactory(cellData -> cellData.getValue().mpCostProperty());
-        skillCooldownColumn.setCellValueFactory(cellData -> cellData.getValue().cooldownProperty());
-        skillKeysColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getKeys()));
+        skillNameColumn.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().getName()));
         availableSkillsTable.setItems(selectedSkills);
-
-        // Инициализация ComboBox типов скиллов
-        newSkillTypeCombo.getItems().addAll("Атака", "Бафф", "Лечение", "Дебафф");
-        newSkillTypeCombo.setConverter(new StringConverter<String>() {
-            @Override
-            public String toString(String type) {
-                return type != null ? type : "";
-            }
-            @Override
-            public String fromString(String string) {
-                return string;
-            }
-        });
     }
 
     private void setupHotKeys() {
+        // Пустая реализация, так как горячие клавиши не требуются по текущим требованиям
     }
 
     private void validatePercentField(TextField field) {
@@ -215,23 +200,6 @@ public class BotUIController {
                 } catch (NumberFormatException e) {
                     Platform.runLater(() -> field.setText(oldVal));
                     log("Ошибка: введите число");
-                }
-            }
-        });
-    }
-
-    private void validateNumericField(TextField field, String fieldName) {
-        field.textProperty().addListener((obs, oldVal, newVal) -> {
-            if (!newVal.isEmpty()) {
-                try {
-                    int value = Integer.parseInt(newVal);
-                    if (value < 0) {
-                        Platform.runLater(() -> field.setText(oldVal));
-                        log("Ошибка: " + fieldName + " должно быть неотрицательным");
-                    }
-                } catch (NumberFormatException e) {
-                    Platform.runLater(() -> field.setText(oldVal));
-                    log("Ошибка: " + fieldName + " должно быть числом");
                 }
             }
         });
@@ -262,16 +230,6 @@ public class BotUIController {
         if (key != null && !capturedKeys.contains(key)) {
             capturedKeys.add(key);
             keysField.setText(String.join(",", capturedKeys));
-        }
-        event.consume();
-    }
-
-    private void handleSkillKeyPress(KeyEvent event) {
-        KeyCode keyCode = event.getCode();
-        String key = mapKeyCodeToString(keyCode);
-        if (key != null && !capturedKeys.contains(key)) {
-            capturedKeys.add(key);
-            newSkillKeysField.setText(String.join(",", capturedKeys));
         }
         event.consume();
     }
@@ -399,21 +357,34 @@ public class BotUIController {
     @FXML
     private void addAction() {
         String actionType = actionTypeComboBox.getSelectionModel().getSelectedItem();
-        String keys = keysField.getText();
-        if (actionType != null && !keys.isEmpty()) {
-            if (editingAction != null) {
-                editingAction.setActionType(actionType);
-                editingAction.setKeys(keys);
-                editingAction = null;
-                editActionButton.setText("Редактировать");
-            } else {
-                actions.add(new Action(actionType, keys));
-            }
-            clearActionFields();
-            log("Действие добавлено/обновлено: " + actionType);
-        } else {
+        String keys = keysField.getText().trim();
+        if (actionType == null || keys.isEmpty()) {
             log("Ошибка: тип действия или клавиши не выбраны");
+            return;
         }
+
+        // Проверка уникальности клавиш
+        for (Action existingAction : actions) {
+            if (existingAction.getActionType().equals(actionType)) {
+                log("Ошибка: действие '" + actionType + "' уже существует");
+                return;
+            }
+            if (editingAction != existingAction && existingAction.getKeys().equals(keys)) {
+                log("Ошибка: клавиши '" + keys + "' уже используются");
+                return;
+            }
+        }
+
+        if (editingAction != null) {
+            editingAction.setActionType(actionType);
+            editingAction.setKeys(keys);
+            editingAction = null;
+            editActionButton.setText("Редактировать");
+        } else {
+            actions.add(new Action(actionType, keys));
+        }
+        clearActionFields();
+        log("Действие добавлено/обновлено: " + actionType);
     }
 
     @FXML
@@ -449,76 +420,6 @@ public class BotUIController {
         actionTypeComboBox.getSelectionModel().clearSelection();
         editingAction = null;
         editActionButton.setText("Редактировать");
-    }
-
-    @FXML
-    private void addSkill() {
-        String skillName = newSkillNameField.getText().trim();
-        String skillType = newSkillTypeCombo.getSelectionModel().getSelectedItem();
-        String mpText = newSkillMpField.getText().trim();
-        String cooldownText = newSkillCooldownField.getText().trim();
-        String keys = newSkillKeysField.getText().trim();
-
-        if (skillName.isEmpty() || skillType == null || mpText.isEmpty() || cooldownText.isEmpty() || keys.isEmpty()) {
-            log("Ошибка: все поля скилла должны быть заполнены");
-            return;
-        }
-
-        try {
-            int mp = Integer.parseInt(mpText);
-            int cooldown = Integer.parseInt(cooldownText);
-            if (editingSkill != null) {
-                editingSkill = null;
-                editSkillButton.setText("Редактировать скилл");
-            } else {
-                selectedSkills.add(new Skill(skillName, skillType, mp, cooldown, keys));
-            }
-            clearSkillFields();
-            log("Скилл добавлен/обновлен: " + skillName);
-        } catch (NumberFormatException e) {
-            log("Ошибка: MP и перезарядка должны быть числами");
-        }
-    }
-
-    @FXML
-    private void editSkill() {
-        Skill selectedSkill = availableSkillsTable.getSelectionModel().getSelectedItem();
-        if (selectedSkill != null) {
-            newSkillNameField.setText(selectedSkill.getName());
-            newSkillTypeCombo.setValue(selectedSkill.getType());
-            newSkillMpField.setText(String.valueOf(selectedSkill.getMpCost()));
-            newSkillCooldownField.setText(String.valueOf(selectedSkill.getCooldown()));
-            newSkillKeysField.setText(selectedSkill.getKeys());
-            capturedKeys.clear();
-            capturedKeys.addAll(List.of(selectedSkill.getKeys().split(",")));
-            editingSkill = selectedSkill;
-            editSkillButton.setText("Сохранить скилл");
-        } else {
-            log("Выберите скилл для редактирования");
-        }
-    }
-
-    @FXML
-    private void deleteSkill() {
-        Skill selectedSkill = availableSkillsTable.getSelectionModel().getSelectedItem();
-        if (selectedSkill != null) {
-            selectedSkills.remove(selectedSkill);
-            clearSkillFields();
-            log("Скилл удален");
-        } else {
-            log("Выберите скилл для удаления");
-        }
-    }
-
-    private void clearSkillFields() {
-        newSkillNameField.setText("");
-        newSkillTypeCombo.getSelectionModel().clearSelection();
-        newSkillMpField.setText("");
-        newSkillCooldownField.setText("");
-        newSkillKeysField.setText("");
-        capturedKeys.clear();
-        editingSkill = null;
-        editSkillButton.setText("Редактировать скилл");
     }
 
     @FXML
@@ -800,18 +701,6 @@ public class BotUIController {
         }
         settings.put("actions", actionsJson);
 
-        JSONObject skillsJson = new JSONObject();
-        for (Skill skill : selectedSkills) {
-            JSONObject skillJson = new JSONObject();
-            skillJson.put("name", skill.getName());
-            skillJson.put("type", skill.getType());
-            skillJson.put("mpCost", skill.getMpCost());
-            skillJson.put("cooldown", skill.getCooldown());
-            skillJson.put("keys", skill.getKeys());
-            skillsJson.put(skill.getName(), skillJson);
-        }
-        settings.put("skills", skillsJson);
-
         try (FileWriter file = new FileWriter("settings.json")) {
             file.write(settings.toString(4));
             log("Настройки сохранены в settings.json");
@@ -860,21 +749,6 @@ public class BotUIController {
                 }
             }
 
-            selectedSkills.clear();
-            JSONObject skillsJson = settings.optJSONObject("skills");
-            if (skillsJson != null) {
-                for (String skillName : skillsJson.keySet()) {
-                    JSONObject skillJson = skillsJson.getJSONObject(skillName);
-                    selectedSkills.add(new Skill(
-                            skillJson.getString("name"),
-                            skillJson.getString("type"),
-                            skillJson.getInt("mpCost"),
-                            skillJson.getInt("cooldown"),
-                            skillJson.getString("keys")
-                    ));
-                }
-            }
-
             log("Настройки загружены из settings.json");
         } catch (IOException e) {
             log("Ошибка загрузки настроек: файл settings.json не найден");
@@ -882,10 +756,9 @@ public class BotUIController {
     }
 
     private void log(String message) {
-        if (botController != null) {
-            botController.log(message);
-        } else {
-            Platform.runLater(() -> logArea.appendText(message + "\n"));
+        synchronized (logBuffer) {
+            logBuffer.append(message).append("\n");
+            scheduleLogUpdate();
         }
     }
 
