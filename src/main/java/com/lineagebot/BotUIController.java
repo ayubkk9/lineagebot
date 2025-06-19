@@ -102,8 +102,18 @@ public class BotUIController {
 
     public void setPrimaryStage(Stage stage) {
         this.primaryStage = stage;
-        this.scene = stage.getScene();
         log("Primary stage установлен");
+
+        // Добавляем горячие клавиши для старта (Page Up) и остановки (Page Down)
+        stage.getScene().setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.PAGE_UP) {
+                startBot();
+                event.consume();
+            } else if (event.getCode() == KeyCode.PAGE_DOWN) {
+                stopBot();
+                event.consume();
+            }
+        });
     }
 
     @FXML

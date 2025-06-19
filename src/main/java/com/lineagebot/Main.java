@@ -10,14 +10,13 @@ import java.io.IOException;
 public class Main extends Application {
     @Override
     public void start(Stage primaryStage) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("/BotUI.fxml"));
+        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("/BotUI.fxml"));
         Scene scene = new Scene(fxmlLoader.load(), 900, 1100);
-
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Lineage II Bot");
+        primaryStage.setResizable(false);
         BotUIController controller = fxmlLoader.getController();
         controller.setPrimaryStage(primaryStage);
-
-        primaryStage.setTitle("Lineage Bot");
-        primaryStage.setScene(scene);
         primaryStage.show();
     }
 

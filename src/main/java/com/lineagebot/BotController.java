@@ -99,10 +99,10 @@ public class BotController {
                             for (String key : targetKey.split(",")) {
                                 arduino.sendCommand("PRESS_KEY:" + key.trim());
                                 log("🔍 Поиск следующей цели: " + key.trim());
-                                Thread.sleep(300 + random.nextInt(100));
+                                Thread.sleep(100 + random.nextInt(100));
                             }
                         }
-                        Thread.sleep(1000);
+                        Thread.sleep(100);
                         continue;
                     }
 
@@ -116,7 +116,7 @@ public class BotController {
                                 for (String key : autoAttackKey.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
                                     log("⚔️ Авто атака: " + key.trim());
-                                    Thread.sleep(300 + random.nextInt(100));
+                                    Thread.sleep(100 + random.nextInt(0));
                                 }
                             }
                         } else {
@@ -137,7 +137,7 @@ public class BotController {
                                 for (String key : skillKey.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
                                     log("🪄 Использование скилла '" + action.getActionType() + "': " + key.trim());
-                                    Thread.sleep(300 + random.nextInt(100));
+                                    Thread.sleep(100 + random.nextInt(100));
                                 }
                             }
                         }
@@ -148,15 +148,15 @@ public class BotController {
                         log("❤️ HP моба после атаки: " + String.format("%.1f%%", currentMobHP * 100));
 
                         attackAttempts++;
-                        Thread.sleep(500 + random.nextInt(200));
+                        Thread.sleep(100 + random.nextInt(100));
                     }
 
                     if (currentMobHP <= 0.05) {
                         log("✅ Моб убит! Ждём 1 секунду...");
-                        Thread.sleep(1000);
+                        Thread.sleep(100);
                     }
 
-                    Thread.sleep(1000 + random.nextInt(500));
+                    Thread.sleep(200 + random.nextInt(100));
 
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
