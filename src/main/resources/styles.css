@@ -3,7 +3,7 @@
     -fx-padding: 10;
 }
 .main-pane.dark {
-    -fx-background-color: #ff0000; /* Яркий красный для теста, замените на #2e2e2e после проверки */
+    -fx-background-color: #2e2e2e;
 }
 
 .skill-pane {
