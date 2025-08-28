@@ -35,28 +35,32 @@ public class ScreenReader {
         }
     }
 
-    public double readBarLevel(int x, int y, int width, int height) throws Exception {
-        BufferedImage image = robot.createScreenCapture(new Rectangle(x, y, width, height));
-        org.bytedeco.javacv.Frame frame = converter.convert(image);
-        if (frame == null) {
-            throw new Exception("Не удалось конвертировать изображение в Frame");
-        }
-        if (cachedMat == null || cachedMat.rows() != height || cachedMat.cols() != width) {
-            cachedMat = new Mat(height, width, org.bytedeco.opencv.global.opencv_core.CV_8UC1);
-        }
-        Mat mat = matConverter.convert(frame);
-        opencv_imgproc.cvtColor(mat, cachedMat, opencv_imgproc.COLOR_BGR2GRAY);
-        opencv_imgproc.threshold(cachedMat, cachedMat, 100, 255, opencv_imgproc.THRESH_BINARY);
-
-        int filledPixels = 0;
-        int totalPixels = width * height;
-        byte[] pixels = new byte[totalPixels];
-        cachedMat.data().get(pixels);
-        for (byte pixel : pixels) {
-            if (pixel == -1) { // Белый пиксель (255 в unsigned byte)
-                filledPixels++;
+    public double readBarLevel(int x, int y, int width, int height) throws ScreenReadException {
+        try {
+            BufferedImage image = robot.createScreenCapture(new Rectangle(x, y, width, height));
+            org.bytedeco.javacv.Frame frame = converter.convert(image);
+            if (frame == null) {
+                throw new ScreenReadException("Не удалось конвертировать изображение в Frame");
             }
+            if (cachedMat == null || cachedMat.rows() != height || cachedMat.cols() != width) {
+                cachedMat = new Mat(height, width, org.bytedeco.opencv.global.opencv_core.CV_8UC1);
+            }
+            Mat mat = matConverter.convert(frame);
+            opencv_imgproc.cvtColor(mat, cachedMat, opencv_imgproc.COLOR_BGR2GRAY);
+            opencv_imgproc.threshold(cachedMat, cachedMat, 100, 255, opencv_imgproc.THRESH_BINARY);
+
+            int filledPixels = 0;
+            int totalPixels = width * height;
+            byte[] pixels = new byte[totalPixels];
+            cachedMat.data().get(pixels);
+            for (byte pixel : pixels) {
+                if (pixel == -1) { // Белый пиксель (255 в unsigned byte)
+                    filledPixels++;
+                }
+            }
+            return (double) filledPixels / totalPixels;
+        } catch (Exception e) {
+            throw new ScreenReadException("Failed to read bar level at [" + x + "," + y + "," + width + "," + height + "]", e);
         }
-        return (double) filledPixels / totalPixels;
     }
 }

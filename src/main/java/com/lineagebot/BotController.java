@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class BotController {
@@ -26,9 +27,10 @@ public class BotController {
     private final int[] hpBar;
     private final int[] mpBar;
     private final int[] mobHpBar;
-    private final Object lock = new Object();
     private final Random random = new Random();
     private final Map<BotUIController.Action, Long> lastActionTimes = new HashMap<>();
+    private final Object arduinoLock = new Object();
+    private final ReentrantReadWriteLock screenLock = new ReentrantReadWriteLock();
 
     public BotController(String arduinoPort, double hpPercent, double mpPercent, String characterWindow,
                          ObservableList<BotUIController.Action> actions, ObservableList<Skill> skills,
@@ -44,12 +46,37 @@ public class BotController {
         this.mobHpBar = mobHpBar;
     }
 
+    private double readHpLevel() throws ScreenReadException {
+        screenLock.readLock().lock();
+        try {
+            return screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
+        } finally {
+            screenLock.readLock().unlock();
+        }
+    }
+
+    private double readMpLevel() throws ScreenReadException {
+        screenLock.readLock().lock();
+        try {
+            return screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
+        } finally {
+            screenLock.readLock().unlock();
+        }
+    }
+
+    private double readMobHpLevel() throws ScreenReadException {
+        screenLock.readLock().lock();
+        try {
+            return screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
+        } finally {
+            screenLock.readLock().unlock();
+        }
+    }
+
     public void startBot() throws Exception {
-        synchronized (lock) {
-            if (!arduino.isPortOpen()) {
-                log("Ошибка: порт Arduino не открыт");
-                throw new Exception("Порт Arduino не открыт");
-            }
+        if (!arduino.isPortOpen()) {
+            log("Ошибка: порт Arduino не открыт");
+            throw new Exception("Порт Arduino не открыт");
         }
 
         running = true;
@@ -62,16 +89,13 @@ public class BotController {
                         continue;
                     }
 
-                    double currentMobHP;
-                    synchronized (lock) {
-                        currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
-                    }
+                    double currentMobHP = readMobHpLevel();
 
                     List<BotUIController.Action> triggeredActions = checkPlayerStatus();
                     if (!triggeredActions.isEmpty()) {
                         for (BotUIController.Action action : triggeredActions) {
                             String keys = action.getKeys();
-                            synchronized (lock) {
+                            synchronized (arduinoLock) {
                                 for (String key : keys.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
                                     log("🪄 Приоритетный скилл '" + action.getActionType() + "' (" +
@@ -95,7 +119,7 @@ public class BotController {
                             targetKey = "TAB";
                             log("⚠️ Используется дефолтная клавиша для поиска цели: TAB");
                         }
-                        synchronized (lock) {
+                        synchronized (arduinoLock) {
                             for (String key : targetKey.split(",")) {
                                 arduino.sendCommand("PRESS_KEY:" + key.trim());
                                 log("🔍 Поиск следующей цели: " + key.trim());
@@ -112,7 +136,7 @@ public class BotController {
                     while (currentMobHP > 0.05 && attackAttempts < 8 && running) {
                         String autoAttackKey = getActionKeys("Auto Attack");
                         if (!autoAttackKey.isEmpty()) {
-                            synchronized (lock) {
+                            synchronized (arduinoLock) {
                                 for (String key : autoAttackKey.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
                                     log("⚔️ Авто атака: " + key.trim());
@@ -129,11 +153,11 @@ public class BotController {
                                         !action.getActionType().equals("Low HP") &&
                                         !action.getActionType().equals("Low MP") &&
                                         action.getCondition().equals("Нет"))
-                                .collect(Collectors.toList());
+                                .toList();
                         if (!availableSkills.isEmpty()) {
                             BotUIController.Action action = availableSkills.get(random.nextInt(availableSkills.size()));
                             String skillKey = action.getKeys();
-                            synchronized (lock) {
+                            synchronized (arduinoLock) {
                                 for (String key : skillKey.split(",")) {
                                     arduino.sendCommand("PRESS_KEY:" + key.trim());
                                     log("🪄 Использование скилла '" + action.getActionType() + "': " + key.trim());
@@ -142,9 +166,7 @@ public class BotController {
                             }
                         }
 
-                        synchronized (lock) {
-                            currentMobHP = screenReader.readBarLevel(mobHpBar[0], mobHpBar[1], mobHpBar[2], mobHpBar[3]);
-                        }
+                        currentMobHP = readMobHpLevel();
                         log("❤️ HP моба после атаки: " + String.format("%.1f%%", currentMobHP * 100));
 
                         attackAttempts++;
@@ -161,8 +183,16 @@ public class BotController {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
+                } catch (ScreenReadException e) {
+                    log("❌ Критическая ошибка чтения с экрана: " + e.getMessage());
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
                 } catch (Exception e) {
-                    log("❌ Ошибка в цикле бота: " + e.getMessage());
+                    log("❌ Общая ошибка в цикле бота: " + e.getMessage());
                     try {
                         Thread.sleep(2000);
                     } catch (InterruptedException ie) {
@@ -177,18 +207,14 @@ public class BotController {
     private List<BotUIController.Action> checkPlayerStatus() {
         List<BotUIController.Action> triggeredActions = new ArrayList<>();
         try {
-            double playerHP;
-            double playerMP;
-            synchronized (lock) {
-                playerHP = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
-                playerMP = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
-            }
+            double playerHP = readHpLevel();
+            double playerMP = readMpLevel();
 
             String mpKey = getActionKeys("Low MP");
             String hpKey = getActionKeys("Low HP");
 
             if (!mpKey.isEmpty() && playerMP < mpPercent) {
-                synchronized (lock) {
+                synchronized (arduinoLock) {
                     for (String key : mpKey.split(",")) {
                         arduino.sendCommand("PRESS_KEY:" + key.trim());
                         log("💧 Восстановление MP: " + key.trim());
@@ -198,7 +224,7 @@ public class BotController {
             }
 
             if (!hpKey.isEmpty() && playerHP < hpPercent) {
-                synchronized (lock) {
+                synchronized (arduinoLock) {
                     for (String key : hpKey.split(",")) {
                         arduino.sendCommand("PRESS_KEY:" + key.trim());
                         log("❤️ Восстановление HP: " + key.trim());
@@ -222,15 +248,17 @@ public class BotController {
                 }
             }
 
-        } catch (Exception e) {
+        } catch (ScreenReadException e) {
             log("❌ Ошибка проверки HP/MP: " + e.getMessage());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
         return triggeredActions;
     }
 
     public void stopBot() {
         running = false;
-        synchronized (lock) {
+        synchronized (arduinoLock) {
             arduino.close();
         }
         lastActionTimes.clear();
@@ -258,15 +286,17 @@ public class BotController {
         String os = System.getProperty("os.name").toLowerCase();
         if (os.contains("win")) {
             WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, windowTitle);
-            return hWnd != null && User32.INSTANCE.IsWindowVisible(hWnd);
+            if (hWnd == null) return false;
+
+            // Проверяем, является ли наше окно активным (foreground)
+            WinDef.HWND foregroundHwnd = User32.INSTANCE.GetForegroundWindow();
+            return hWnd.equals(foregroundHwnd) && User32.INSTANCE.IsWindowVisible(hWnd);
         }
         try {
             return ProcessHandle.allProcesses()
                     .map(ProcessHandle::info)
                     .map(ProcessHandle.Info::command)
-                    .filter(cmd -> cmd.isPresent() && cmd.get().contains(windowTitle))
-                    .findAny()
-                    .isPresent();
+                    .anyMatch(cmd -> cmd.isPresent() && cmd.get().contains(windowTitle));
         } catch (Exception e) {
             log("Ошибка проверки активности окна: " + e.getMessage());
             return true;

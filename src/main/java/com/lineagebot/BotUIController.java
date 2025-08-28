@@ -14,6 +14,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
@@ -789,8 +790,16 @@ public class BotUIController {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
-                } catch (Exception e) {
+                } catch (ScreenReadException e) {
                     log("Ошибка чтения полос HP/MP: " + e.getMessage());
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                } catch (Exception e) {
+                    log("Неизвестная ошибка чтения полос HP/MP: " + e.getMessage());
                 }
             }
         });
@@ -845,83 +854,137 @@ public class BotUIController {
 
     private void selectBar(TextField targetField, String barName) {
         log("Выбор полосы " + barName + " начат");
+
+        // Сначала активируем окно игры
+        String selectedWindow = characterComboBox.getSelectionModel().getSelectedItem();
+        if (selectedWindow == null) {
+            log("❌ Ошибка: сначала выберите окно игры!");
+            return;
+        }
+
+        // Активируем окно игры
+        WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, selectedWindow);
+        if (hWnd != null) {
+            User32.INSTANCE.SetForegroundWindow(hWnd);
+            log("Активировано окно игры: " + selectedWindow);
+
+            // Даем время на переключение окна
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        } else {
+            log("❌ Ошибка: не удалось найти окно игры");
+            return;
+        }
+
         Popup popup = new Popup();
-        Pane pane = new Pane();
-        pane.setStyle("-fx-background-color: rgba(0, 0, 255, 0.1);");
-        popup.getContent().add(pane);
+        Pane overlayPane = new Pane();
+        overlayPane.setStyle("-fx-background-color: rgba(0, 0, 0, 0.01);"); // Почти прозрачный
+        popup.getContent().add(overlayPane);
 
         Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
-        pane.setPrefSize(screenBounds.getWidth(), screenBounds.getHeight());
+        overlayPane.setPrefSize(screenBounds.getWidth(), screenBounds.getHeight());
         popup.setX(screenBounds.getMinX());
         popup.setY(screenBounds.getMinY());
+        popup.setAutoHide(false);
 
         try {
             Robot robot = new Robot();
             AtomicReference<Point> startPoint = new AtomicReference<>(null);
             AtomicReference<Point> endPoint = new AtomicReference<>(null);
-            AtomicBoolean selecting = new AtomicBoolean(true);
+            AtomicBoolean isSelecting = new AtomicBoolean(true);
 
-            Stage zoomStage = new Stage();
-            ImageView zoomView = new ImageView();
-            zoomView.setFitWidth(300);
-            zoomView.setFitHeight(300);
-            Scene zoomScene = new Scene(new StackPane(zoomView));
-            zoomStage.setScene(zoomScene);
-            zoomStage.setTitle("Лупа");
-            zoomStage.initOwner(primaryStage);
+            Label instructionLabel = new Label("ЛКМ - начальная точка, ПКМ - конечная точка\nESC - отмена");
+            instructionLabel.setStyle("-fx-background-color: rgba(0,0,0,0.7); -fx-text-fill: white; -fx-padding: 10px;");
+            instructionLabel.setLayoutX(50);
+            instructionLabel.setLayoutY(50);
+            overlayPane.getChildren().add(instructionLabel);
 
-            pane.setOnMousePressed(event -> {
-                if (!selecting.get()) return;
+            Pane selectionPane = new Pane();
+            selectionPane.setStyle("-fx-background-color: rgba(255, 0, 0, 0.3); -fx-border-color: red; -fx-border-width: 2px;");
+            selectionPane.setVisible(false);
+            overlayPane.getChildren().add(selectionPane);
+
+            overlayPane.setOnMousePressed(event -> {
+                if (!isSelecting.get()) return;
+
                 Point currentPoint = MouseInfo.getPointerInfo().getLocation();
+
                 if (event.getButton() == MouseButton.PRIMARY && startPoint.get() == null) {
                     startPoint.set(currentPoint);
                     log("Начало полосы " + barName + " выбрано: " + currentPoint.x + "," + currentPoint.y);
+
+                    // Показываем начальную точку
+                    selectionPane.setLayoutX(currentPoint.x);
+                    selectionPane.setLayoutY(currentPoint.y);
+                    selectionPane.setPrefSize(1, 1);
+                    selectionPane.setVisible(true);
                 }
             });
 
-            pane.setOnMouseReleased(event -> {
-                if (!selecting.get()) return;
+            overlayPane.setOnMouseReleased(event -> {
+                if (!isSelecting.get()) return;
+
                 Point currentPoint = MouseInfo.getPointerInfo().getLocation();
-                if (event.getButton() == MouseButton.SECONDARY && startPoint.get() == null) {
+
+                if (event.getButton() == MouseButton.SECONDARY && startPoint.get() != null) {
                     endPoint.set(currentPoint);
-                    selecting.set(false);
-                    popup.hide();
-                    zoomStage.close();
+                    isSelecting.set(false);
 
                     Point sp = startPoint.get();
                     Point ep = endPoint.get();
+
                     int x = Math.min(sp.x, ep.x);
                     int y = Math.min(sp.y, ep.y);
                     int width = Math.abs(ep.x - sp.x);
                     int height = Math.abs(ep.y - sp.y);
+
                     if (width <= 0) width = 1;
                     if (height <= 0) height = 1;
+
                     targetField.setText(x + "," + y + "," + width + "," + height);
                     log("Полоса " + barName + " выбрана: " + x + "," + y + "," + width + "," + height);
+
+                    popup.hide();
                     Platform.runLater(() -> primaryStage.requestFocus());
                 }
             });
 
-            pane.setOnMouseDragged(event -> {
-                if (selecting.get() && startPoint.get() != null) {
-                    endPoint.set(MouseInfo.getPointerInfo().getLocation());
+            overlayPane.setOnMouseMoved(event -> {
+                if (startPoint.get() != null && isSelecting.get()) {
+                    Point currentPoint = MouseInfo.getPointerInfo().getLocation();
                     Point sp = startPoint.get();
-                    Point ep = endPoint.get();
-                    int x = Math.min(sp.x, ep.x) - 50;
-                    int y = Math.min(sp.y, ep.y) - 50;
-                    int width = Math.abs(ep.x - sp.x) + 100;
-                    int height = Math.abs(ep.y - sp.y) + 100;
-                    BufferedImage zoomedImage = robot.createScreenCapture(new java.awt.Rectangle(x, y, width, height));
-                    Image fxImage = SwingFXUtils.toFXImage(zoomedImage, null);
-                    zoomView.setImage(fxImage);
-                    if (!zoomStage.isShowing()) zoomStage.show();
-                    pane.requestLayout();
+
+                    int x = Math.min(sp.x, currentPoint.x);
+                    int y = Math.min(sp.y, currentPoint.y);
+                    int width = Math.abs(currentPoint.x - sp.x);
+                    int height = Math.abs(currentPoint.y - sp.y);
+
+                    selectionPane.setLayoutX(x);
+                    selectionPane.setLayoutY(y);
+                    selectionPane.setPrefSize(width, height);
+                }
+            });
+
+            // Обработка отмены по ESC
+            overlayPane.setOnKeyPressed(event -> {
+                if (event.getCode() == KeyCode.ESCAPE) {
+                    isSelecting.set(false);
+                    popup.hide();
+                    Platform.runLater(() -> primaryStage.requestFocus());
+                    log("Выбор полосы отменен");
                 }
             });
 
             popup.show(primaryStage);
+            overlayPane.requestFocus(); // Важно для обработки клавиш
+
         } catch (AWTException e) {
-            log("Ошибка инициализации Robot: " + e.getMessage());
+            log("❌ Ошибка инициализации Robot: " + e.getMessage());
+            popup.hide();
         }
     }
 
