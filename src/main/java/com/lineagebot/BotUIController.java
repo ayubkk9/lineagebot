@@ -92,6 +92,7 @@ public class BotUIController {
     private long lastLogUpdateTime = 0;
     private final Object logSync = new Object();
     private BotController botController;
+    private WebMonitor webMonitor;
     private Thread hpMpUpdateThread;
     private final ObservableList<Action> actions = FXCollections.observableArrayList();
     private final ObservableList<String> availableSkills = FXCollections.observableArrayList();
@@ -105,7 +106,6 @@ public class BotUIController {
         this.primaryStage = stage;
         log("Primary stage установлен");
 
-        // Добавляем горячие клавиши для старта (Page Up) и остановки (Page Down)
         stage.getScene().setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.PAGE_UP) {
                 startBot();
@@ -712,6 +712,7 @@ public class BotUIController {
                 return;
             }
 
+            // Создаем BotController с правильными параметрами
             botController = new BotController(arduinoPort, hpPercent, mpPercent,
                     selectedCharacter, actions, FXCollections.observableArrayList(), hpBar, mpBar, mobHpBar);
 
@@ -730,12 +731,24 @@ public class BotUIController {
             startHpMpUpdate(selectedCharacter, hpBar, mpBar);
             activateWindow();
 
-        } catch (NumberFormatException e) {
-            log("Ошибка: неверный формат процентов HP/MP");
-            isRunning = false;
+            // Запускаем веб-монитор
+            try {
+                webMonitor = new WebMonitor(botController);
+                webMonitor.startWebServer(8080);
+                log("🌐 Web monitor started on http://localhost:8080");
+
+                // Добавляем shutdown hook для корректного завершения
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    if (webMonitor != null) {
+                        webMonitor.stopWebServer();
+                    }
+                }));
+
+            } catch (Exception e) {
+                log("❌ Failed to start web monitor: " + e.getMessage());
+            }
         } catch (Exception e) {
-            log("Ошибка запуска: " + e.getMessage());
-            isRunning = false;
+            throw new RuntimeException(e);
         }
     }
 
@@ -747,6 +760,13 @@ public class BotUIController {
 
         if (botController != null) {
             botController.stopBot();
+        }
+
+        // Останавливаем веб-монитор
+        if (webMonitor != null) {
+            webMonitor.stopWebServer();
+            webMonitor = null;
+            log("🌐 Web monitor stopped");
         }
 
         if (hpMpUpdateThread != null) {
@@ -855,20 +875,17 @@ public class BotUIController {
     private void selectBar(TextField targetField, String barName) {
         log("Выбор полосы " + barName + " начат");
 
-        // Сначала активируем окно игры
         String selectedWindow = characterComboBox.getSelectionModel().getSelectedItem();
         if (selectedWindow == null) {
             log("❌ Ошибка: сначала выберите окно игры!");
             return;
         }
 
-        // Активируем окно игры
         WinDef.HWND hWnd = User32.INSTANCE.FindWindow(null, selectedWindow);
         if (hWnd != null) {
             User32.INSTANCE.SetForegroundWindow(hWnd);
             log("Активировано окно игры: " + selectedWindow);
 
-            // Даем время на переключение окна
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
@@ -882,7 +899,7 @@ public class BotUIController {
 
         Popup popup = new Popup();
         Pane overlayPane = new Pane();
-        overlayPane.setStyle("-fx-background-color: rgba(0, 0, 0, 0.01);"); // Почти прозрачный
+        overlayPane.setStyle("-fx-background-color: rgba(0, 0, 0, 0.01);");
         popup.getContent().add(overlayPane);
 
         Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
@@ -917,7 +934,6 @@ public class BotUIController {
                     startPoint.set(currentPoint);
                     log("Начало полосы " + barName + " выбрано: " + currentPoint.x + "," + currentPoint.y);
 
-                    // Показываем начальную точку
                     selectionPane.setLayoutX(currentPoint.x);
                     selectionPane.setLayoutY(currentPoint.y);
                     selectionPane.setPrefSize(1, 1);
@@ -969,7 +985,6 @@ public class BotUIController {
                 }
             });
 
-            // Обработка отмены по ESC
             overlayPane.setOnKeyPressed(event -> {
                 if (event.getCode() == KeyCode.ESCAPE) {
                     isSelecting.set(false);
@@ -980,7 +995,7 @@ public class BotUIController {
             });
 
             popup.show(primaryStage);
-            overlayPane.requestFocus(); // Важно для обработки клавиш
+            overlayPane.requestFocus();
 
         } catch (AWTException e) {
             log("❌ Ошибка инициализации Robot: " + e.getMessage());

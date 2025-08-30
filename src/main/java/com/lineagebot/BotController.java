@@ -16,6 +16,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class BotController {
+    private final BotStats botStats = new BotStats();
+    private long startTime;
     private final ScreenReader screenReader;
     private final ArduinoInterface arduino;
     private volatile boolean running = false;
@@ -46,21 +48,41 @@ public class BotController {
         this.mobHpBar = mobHpBar;
     }
 
+    public boolean isBotRunning() {
+        boolean isRunning = false;
+        return false;
+    }
+
+    public String getDebugInfo() {
+        Object isRunning = null;
+        return String.format(
+                "BotController: running=%b, isRunning=%b, botStats=%s",
+                running, null, botStats.toString()
+        );
+    }
+
     private double readHpLevel() throws ScreenReadException {
         screenLock.readLock().lock();
         try {
-            return screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
-        } finally {
-            screenLock.readLock().unlock();
+            double level = screenReader.readBarLevel(hpBar[0], hpBar[1], hpBar[2], hpBar[3]);
+            System.out.println("HP level read: " + level + " from coordinates: " +
+                    hpBar[0] + "," + hpBar[1] + "," + hpBar[2] + "," + hpBar[3]);
+            return level;
+        } catch (Exception e) {
+            System.out.println("Error reading HP: " + e.getMessage());
+            throw new ScreenReadException("HP read failed", e);
         }
     }
 
     private double readMpLevel() throws ScreenReadException {
-        screenLock.readLock().lock();
         try {
-            return screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
-        } finally {
-            screenLock.readLock().unlock();
+            double level = screenReader.readBarLevel(mpBar[0], mpBar[1], mpBar[2], mpBar[3]);
+            System.out.println("MP level read: " + level + " from coordinates: " +
+                    mpBar[0] + "," + mpBar[1] + "," + mpBar[2] + "," + mpBar[3]);
+            return level;
+        } catch (Exception e) {
+            System.out.println("Error reading MP: " + e.getMessage());
+            throw new ScreenReadException("MP read failed", e);
         }
     }
 
@@ -74,6 +96,8 @@ public class BotController {
     }
 
     public void startBot() throws Exception {
+        startTime = System.currentTimeMillis();
+        botStats.setStatus("RUNNING");
         if (!arduino.isPortOpen()) {
             log("Ошибка: порт Arduino не открыт");
             throw new Exception("Порт Arduino не открыт");
@@ -174,6 +198,7 @@ public class BotController {
                     }
 
                     if (currentMobHP <= 0.05) {
+                        botStats.incrementMobsKilled();
                         log("✅ Моб убит! Ждём 1 секунду...");
                         Thread.sleep(100);
                     }
@@ -257,6 +282,7 @@ public class BotController {
     }
 
     public void stopBot() {
+        botStats.setStatus("STOPPED");
         running = false;
         synchronized (arduinoLock) {
             arduino.close();
@@ -264,6 +290,33 @@ public class BotController {
         lastActionTimes.clear();
         log("Бот остановлен");
     }
+
+
+
+    private void updateStats() {
+        long currentUptime = System.currentTimeMillis() - startTime;
+        botStats.setUptime(currentUptime);
+
+        try {
+            double hp = readHpLevel() * 100;
+            double mp = readMpLevel() * 100;
+            botStats.setCurrentHp(hp);
+            botStats.setCurrentMp(mp);
+
+            // Проверяем смерть персонажа
+            boolean wasAlive = botStats.isAlive();
+            boolean isNowAlive = hp > 5.0;
+            botStats.setAlive(isNowAlive);
+
+            if (wasAlive && !isNowAlive) {
+                botStats.incrementDeaths();
+                log("💀 Персонаж умер! Всего смертей: " + botStats.getDeaths());
+            }
+        } catch (ScreenReadException e) {
+            log("❌ Ошибка обновления статистики: " + e.getMessage());
+        }
+    }
+
 
     public StringProperty logProperty() {
         return log;
@@ -306,4 +359,56 @@ public class BotController {
     public void loadClassSkills(ClassId classId, ObservableList<Skill> skills) {
         // Не используется
     }
-}
+
+    public BotStats getBotStats() {
+        return botStats;
+    }
+
+    public void forceStatsUpdate() {
+        //boolean isRunning = false;
+        if (!running) {
+            // Если бот не запущен, устанавливаем значения по умолчанию
+            botStats.setStatus("STOPPED");
+            botStats.setCurrentHp(0);
+            botStats.setCurrentMp(0);
+            botStats.setAlive(false);
+            botStats.setUptime(0);
+            botStats.setDeaths(0);
+            return;
+        }
+
+        // Объявляем переменные вне блока try
+        boolean wasAlive = botStats.isAlive();
+        boolean isNowAlive = false;
+        double hpPercent = 0;
+        double mpPercent = 0;
+
+        try {
+            // Убедимся, что статус RUNNING
+            botStats.setStatus("RUNNING");
+
+            // Читаем текущие уровни HP/MP с экрана
+            double hpLevel = readHpLevel();
+            double mpLevel = readMpLevel();
+
+            // Обновляем статистику
+            botStats.setCurrentHp(hpPercent);
+            botStats.setCurrentMp(mpPercent);
+
+            // Проверяем, жив ли персонаж (HP > 10%)
+            boolean isAlive = false;
+            botStats.setAlive(isAlive);
+
+            // Обновляем время работы
+            if (startTime > 0) {
+                botStats.setUptime(System.currentTimeMillis() - startTime);
+            }
+
+            System.out.println("Stats updated - HP: " + hpPercent + "%, MP: " + mpPercent + "%, Alive: " + isAlive);
+
+        } catch (Exception e) {
+            System.out.println("Error in forceStatsUpdate: " + e.getMessage());
+            // Не устанавливаем статус ERROR, сохраняем предыдущие значения
+        }
+    }
+    }
