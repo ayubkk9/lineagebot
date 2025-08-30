@@ -104,64 +104,38 @@ public class WebMonitor {
 
     private String getStatsJson() {
         try {
-            System.out.println("Getting stats from bot controller...");
-
             if (botController == null) {
-                System.out.println("BotController is NULL!");
-                JSONObject error = new JSONObject();
-                error.put("status", "ERROR");
-                error.put("error", "BotController is null");
-                return error.toString();
+                return "{\"status\":\"STOPPED\",\"mobsKilled\":0}";
             }
 
-            // Принудительно обновляем статистику
-            System.out.println("Calling forceStatsUpdate...");
-            botController.forceStatsUpdate();
-
-            System.out.println("Getting bot stats...");
             BotStats stats = botController.getBotStats();
-
             if (stats == null) {
-                System.out.println("BotStats is NULL!");
-                JSONObject error = new JSONObject();
-                error.put("status", "ERROR");
-                error.put("error", "BotStats is null");
-                return error.toString();
+                return "{\"status\":\"STOPPED\",\"mobsKilled\":0}";
             }
 
-            System.out.println("Creating JSON response...");
-            JSONObject json = new JSONObject();
-            json.put("mobsKilled", stats.getMobsKilled());
-            json.put("isAlive", stats.isAlive());
-            json.put("currentHp", Math.round(stats.getCurrentHp() * 10) / 10.0);
-            json.put("currentMp", Math.round(stats.getCurrentMp() * 10) / 10.0);
-            json.put("status", stats.getStatus());
-            json.put("uptime", stats.getUptime());
-            json.put("deaths", stats.getDeaths());
-
-            String jsonString = json.toString();
-            System.out.println("Sending stats: " + jsonString);
-            return jsonString;
+            // Только статус и счетчик мобов
+            return String.format(
+                    "{\"status\":\"%s\",\"mobsKilled\":%d}",
+                    stats.getStatus(),
+                    stats.getMobsKilled()
+            );
 
         } catch (Exception e) {
-            System.out.println("Error getting stats: " + e.getMessage());
-            e.printStackTrace();
-            JSONObject error = new JSONObject();
-            error.put("status", "ERROR");
-            error.put("error", e.getMessage());
-            return error.toString();
+            System.out.println("Error in getStatsJson: " + e.getMessage());
+            return "{\"status\":\"ERROR\",\"mobsKilled\":0}";
         }
     }
 
     private void sendJsonResponse(PrintWriter out, String json) {
         out.println("HTTP/1.1 200 OK");
-        out.println("Content-Type: application/json; charset=UTF-8");
+        out.println("Content-Type: application/json"); // Убираем charset=UTF-8
         out.println("Access-Control-Allow-Origin: *");
         out.println("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
         out.println("Access-Control-Allow-Headers: Content-Type, Authorization");
         out.println("Connection: close");
-        out.println();
+        out.println(); // Пустая строка перед телом
         out.println(json);
+        out.flush();
     }
 
     private void sendHtmlResponse(PrintWriter out, String html) {
@@ -182,83 +156,68 @@ public class WebMonitor {
     }
 
     private String getHtmlPage() {
-        return "<!DOCTYPE html>" +
+        String html = "<!DOCTYPE html>" +
                 "<html lang='en'>" +
                 "<head>" +
                 "    <meta charset='UTF-8'>" +
                 "    <meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
                 "    <title>Lineage II Bot Monitor</title>" +
                 "    <style>" +
-                "        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }" +
-                "        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }" +
-                "        h1 { text-align: center; color: #2c3e50; }" +
-                "        .stat { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 5px; }" +
-                "        .status-running { color: green; }" +
-                "        .status-stopped { color: red; }" +
-                "        .alive { color: green; }" +
-                "        .dead { color: red; }" +
+                "        * { margin: 0; padding: 0; box-sizing: border-box; }" +
+                "        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }" +
+                "        .dashboard { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(20px); border-radius: 25px; padding: 40px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.2); max-width: 500px; width: 100%; }" +
+                "        .title { text-align: center; color: white; font-size: 32px; font-weight: bold; margin-bottom: 40px; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); }" +
+                "        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }" +
+                "        .stat-card { background: rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 30px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.3s ease; }" +
+                "        .stat-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.15); }" +
+                "        .stat-label { color: rgba(255, 255, 255, 0.8); font-size: 18px; margin-bottom: 15px; font-weight: 500; }" +
+                "        .stat-value { color: white; font-size: 42px; font-weight: bold; text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6); }" +
+                "        .status-running { color: #4CAF50 !important; }" +
+                "        .status-stopped { color: #F44336 !important; }" +
+                "        .last-update { text-align: center; color: rgba(255, 255, 255, 0.6); font-size: 14px; margin-top: 30px; }" +
+                "        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; gap: 20px; } .dashboard { padding: 30px 20px; } .title { font-size: 28px; } }" +
                 "    </style>" +
                 "</head>" +
                 "<body>" +
-                "    <div class='container'>" +
-                "        <h1>🤖 Lineage II Bot Monitor</h1>" +
-                "        " +
-                "        <div class='stat'><strong>Status:</strong> <span id='status' class='status-stopped'>STOPPED</span></div>" +
-                "        <div class='stat'><strong>Mobs Killed:</strong> <span id='mobsKilled'>0</span></div>" +
-                "        <div class='stat'><strong>Deaths:</strong> <span id='deaths'>0</span></div>" +
-                "        <div class='stat'><strong>HP:</strong> <span id='currentHp'>0.0</span>%</div>" +
-                "        <div class='stat'><strong>MP:</strong> <span id='currentMp'>0.0</span>%</div>" +
-                "        <div class='stat'><strong>Alive:</strong> <span id='isAlive' class='dead'>No</span></div>" +
-                "        <div class='stat'><strong>Uptime:</strong> <span id='uptime'>00:00:00</span></div>" +
-                "        <div class='stat'><strong>Last Update:</strong> <span id='lastUpdate'>never</span></div>" +
+                "    <div class='dashboard'>" +
+                "        <div class='title'>🤖 Lineage II Bot</div>" +
+                "        <div class='grid'>" +
+                "            <div class='stat-card'>" +
+                "                <div class='stat-label'>СТАТУС</div>" +
+                "                <div class='stat-value' id='status'>—</div>" +
+                "            </div>" +
+                "            <div class='stat-card'>" +
+                "                <div class='stat-label'>УБИТО МОБОВ</div>" +
+                "                <div class='stat-value' id='mobsKilled'>0</div>" +
+                "            </div>" +
+                "        </div>" +
+                "        <div class='last-update' id='lastUpdate'>Последнее обновление: —</div>" +
                 "    </div>" +
-                "" +
                 "    <script>" +
                 "        function updateStats() {" +
                 "            fetch('/stats')" +
                 "                .then(response => response.json())" +
                 "                .then(data => {" +
-                "                    console.log('Data received:', data);" +
-                "                    " +
-                "                    document.getElementById('mobsKilled').textContent = data.mobsKilled;" +
-                "                    document.getElementById('deaths').textContent = data.deaths;" +
-                "                    document.getElementById('currentHp').textContent = data.currentHp.toFixed(1);" +
-                "                    document.getElementById('currentMp').textContent = data.currentMp.toFixed(1);" +
-                "                    document.getElementById('uptime').textContent = formatTime(data.uptime);" +
-                "                    " +
                 "                    const statusElement = document.getElementById('status');" +
-                "                    statusElement.textContent = data.status;" +
-                "                    statusElement.className = data.status === 'RUNNING' ? 'status-running' : 'status-stopped';" +
-                "                    " +
-                "                    const aliveElement = document.getElementById('isAlive');" +
-                "                    aliveElement.textContent = data.isAlive ? 'Yes' : 'No';" +
-                "                    aliveElement.className = data.isAlive ? 'alive' : 'dead';" +
-                "                    " +
-                "                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();" +
+                "                    statusElement.textContent = data.status === 'RUNNING' ? 'РАБОТАЕТ' : 'ОСТАНОВЛЕН';" +
+                "                    statusElement.className = 'stat-value ' + (data.status === 'RUNNING' ? 'status-running' : 'status-stopped');" +
+                "                    document.getElementById('mobsKilled').textContent = data.mobsKilled;" +
+                "                    document.getElementById('lastUpdate').textContent = 'Последнее обновление: ' + new Date().toLocaleTimeString();" +
                 "                })" +
                 "                .catch(error => {" +
-                "                    console.error('Error:', error);" +
-                "                    document.getElementById('status').textContent = 'ERROR';" +
+                "                    console.error('Ошибка:', error);" +
+                "                    document.getElementById('status').textContent = 'ОШИБКА';" +
+                "                    document.getElementById('status').className = 'stat-value status-stopped';" +
                 "                });" +
                 "        }" +
-                "" +
-                "        function formatTime(ms) {" +
-                "            if (!ms) return '00:00:00';" +
-                "            const totalSeconds = Math.floor(ms / 1000);" +
-                "            const hours = Math.floor(totalSeconds / 3600);" +
-                "            const minutes = Math.floor((totalSeconds % 3600) / 60);" +
-                "            const seconds = totalSeconds % 60;" +
-                "            " +
-                "            return hours.toString().padStart(2, '0') + ':' + " +
-                "                   minutes.toString().padStart(2, '0') + ':' + " +
-                "                   seconds.toString().padStart(2, '0');" +
-                "        }" +
-                "" +
                 "        setInterval(updateStats, 2000);" +
                 "        updateStats();" +
                 "    </script>" +
                 "</body>" +
                 "</html>";
+
+        System.out.println("HTML length: " + html.length());
+        return html;
     }
 
     public void stopWebServer() {
