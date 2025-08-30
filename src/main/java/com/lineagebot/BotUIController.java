@@ -3,6 +3,8 @@ package com.lineagebot;
 import com.fazecast.jSerialComm.SerialPort;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
@@ -15,6 +17,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
@@ -29,6 +32,7 @@ import javafx.stage.Popup;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.geometry.Rectangle2D;
+import javafx.util.Duration;
 import javafx.util.StringConverter;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -84,6 +88,8 @@ public class BotUIController {
     @FXML private ComboBox<String> themeComboBox;
     @FXML private AnchorPane mainPane;
     @FXML private TabPane tabPane;
+    @FXML private Button licenseInfoButton;
+    @FXML private Button deactivateLicenseButton;
 
     private static final int MAX_LOG_LINES = 100;
     private static final long LOG_UPDATE_DELAY_MS = 1000;
@@ -101,6 +107,7 @@ public class BotUIController {
     private Action editingAction;
     private Stage primaryStage;
     private Scene scene;
+    private LicenseDialog licenseDialog;
 
     public void setPrimaryStage(Stage stage) {
         this.primaryStage = stage;
@@ -119,6 +126,7 @@ public class BotUIController {
 
     @FXML
     private void initialize() {
+        licenseDialog = new LicenseDialog(primaryStage);
         log("Инициализация контроллера начата");
         try {
             String cssPath = getClass().getResource("/com/lineagebot/styles.css") != null ?
@@ -258,6 +266,30 @@ public class BotUIController {
             conditionColumn.setCellFactory(column -> new TableCell<Action, String>() {
                 private final ComboBox<String> comboBox = new ComboBox<>(availableConditions);
 
+                private void setupLicenseContextMenu() {
+                    ContextMenu contextMenu = new ContextMenu();
+
+                    MenuItem infoItem = new MenuItem("Информация о лицензии");
+                    infoItem.setOnAction(e -> showLicenseInfo());
+
+                    MenuItem deactivateItem = new MenuItem("Удалить лицензию");
+                    deactivateItem.setOnAction(e -> deactivateLicense());
+
+                    MenuItem refreshItem = new MenuItem("Обновить статус");
+                    refreshItem.setOnAction(e -> updateLicenseStatusInUI());
+
+                    contextMenu.getItems().addAll(infoItem, deactivateItem, refreshItem);
+
+                    licenseInfoButton.setContextMenu(contextMenu);
+
+                    // Добавляем обработчик правой кнопки мыши
+                    licenseInfoButton.setOnMouseClicked(event -> {
+                        if (event.getButton() == MouseButton.SECONDARY) {
+                            contextMenu.show(licenseInfoButton, event.getScreenX(), event.getScreenY());
+                        }
+                    });
+                }
+
                 @Override
                 protected void updateItem(String item, boolean empty) {
                     super.updateItem(item, empty);
@@ -288,6 +320,13 @@ public class BotUIController {
             });
 
             actionsTable.setItems(actions);
+            updateLicenseStatusInUI();
+
+            Timeline licenseUpdateTimer = new Timeline(
+                    new KeyFrame(Duration.seconds(30), e -> updateLicenseStatusInUI())
+            );
+            licenseUpdateTimer.setCycleCount(Timeline.INDEFINITE);
+            licenseUpdateTimer.play();
 
             hpPercentField.setText("30");
             mpPercentField.setText("30");
@@ -523,6 +562,120 @@ public class BotUIController {
     }
 
     @FXML
+    private void showLicenseInfo() {
+        LicenseManager licenseManager = new LicenseManager();
+
+        if (licenseManager.isValid()) {
+            Alert alert = getAlert(licenseManager);
+            alert.showAndWait();
+        } else {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Информация о лицензии");
+            alert.setHeaderText("❌ Лицензия не активна");
+            alert.setContentText("Лицензия не активирована или истекла срок действия\n\nИспользованных ключей: " +
+                    licenseManager.getUsedKeysCount());
+            alert.showAndWait();
+        }
+    }
+
+    private static Alert getAlert(LicenseManager licenseManager) {
+        int daysRemaining = licenseManager.getDaysRemaining();
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Информация о лицензии");
+        alert.setHeaderText("✅ Лицензия активна");
+        alert.setContentText(String.format(
+                "Лицензия действительна\n\n" +
+                        "Осталось дней: %d\n" +
+                        "Дата активации: %s\n" +
+                        "Дата истечения: %s\n" +
+                        "Использованных ключей: %d",
+                daysRemaining,
+                licenseManager.getFormattedActivationDate(),
+                licenseManager.getFormattedExpirationDate(),
+                licenseManager.getUsedKeysCount()
+        ));
+        return alert;
+    }
+
+    @FXML
+    private void deactivateLicense() {
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("Удаление лицензии");
+        confirmAlert.setHeaderText("Подтверждение удаления");
+        confirmAlert.setContentText("Вы уверены, что хотите удалить текущую лицензию?\n\nПосле удаления этот ключ больше нельзя будет использовать!");
+
+        Optional<ButtonType> result = confirmAlert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            LicenseManager licenseManager = new LicenseManager();
+            if (licenseManager.deactivate()) {
+                Alert successAlert = new Alert(Alert.AlertType.INFORMATION);
+                successAlert.setTitle("Удаление лицензии");
+                successAlert.setHeaderText("✅ Лицензия удалена");
+                successAlert.setContentText("Лицензия успешно удалена. Этот ключ больше нельзя будет активировать.");
+                successAlert.showAndWait();
+
+                log("✅ Лицензия удалена. Ключ добавлен в использованные.");
+                updateLicenseStatusInUI();
+            } else {
+                Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+                errorAlert.setTitle("Ошибка");
+                errorAlert.setHeaderText("❌ Ошибка удаления лицензии");
+                errorAlert.setContentText("Не удалось удалить лицензию");
+                errorAlert.showAndWait();
+            }
+        }
+    }
+
+    // Добавьте этот метод для отображения статуса лицензии в интерфейсе
+    private void updateLicenseStatusInUI() {
+        LicenseManager licenseManager = new LicenseManager();
+
+        if (licenseManager.isValid()) {
+            int days = licenseManager.getDaysRemaining();
+
+            if (days > 7) {
+                licenseInfoButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
+                licenseInfoButton.setText("✓ Лицензия (" + days + " дн.)");
+            } else if (days > 3) {
+                licenseInfoButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white;");
+                licenseInfoButton.setText("⚠ Лицензия (" + days + " дн.)");
+            } else {
+                licenseInfoButton.setStyle("-fx-background-color: #F44336; -fx-text-fill: white;");
+                licenseInfoButton.setText("⚠ Лицензия (" + days + " дн.)");
+            }
+
+            deactivateLicenseButton.setDisable(false);
+
+        } else {
+            licenseInfoButton.setStyle("-fx-background-color: #9E9E9E; -fx-text-fill: white;");
+            licenseInfoButton.setText("❌ Лицензия не активна");
+            deactivateLicenseButton.setDisable(true);
+        }
+    }
+
+    private void checkLicenseExpiration() {
+        LicenseManager licenseManager = new LicenseManager();
+
+        if (licenseManager.isValid()) {
+            int daysRemaining = licenseManager.getDaysRemaining();
+
+            if (daysRemaining <= 3) {
+                Platform.runLater(() -> {
+                    Alert warningAlert = new Alert(Alert.AlertType.WARNING);
+                    warningAlert.setTitle("Внимание");
+                    warningAlert.setHeaderText("Лицензия скоро истекает");
+                    warningAlert.setContentText(String.format(
+                            "Ваша лицензия истечет через %d дней.\nРекомендуется приобрести новую лицензию заранее.",
+                            daysRemaining
+                    ));
+                    warningAlert.showAndWait();
+                });
+            }
+        }
+    }
+
+    @FXML
     private void detectGameWindow() {
         log("Метод detectGameWindow вызван");
         String nickname = characterNameField.getText().trim();
@@ -682,7 +835,22 @@ public class BotUIController {
     @FXML
     private void startBot() {
         log("Метод startBot вызван");
-        if (isRunning) return;
+
+        // Проверка лицензии - ДОЛЖНА БЫТЬ ПЕРВОЙ СТРОЧКОЙ
+        if (!licenseDialog.showLicenseDialog()) {
+            log("❌ Лицензия не активирована. Бот не может быть запущен.");
+            showAlert("Ошибка лицензии", "Лицензия не активирована. Бот не может быть запущен.");
+            return;
+        }
+
+        // Логируем информацию о лицензии
+        log("✅ " + licenseDialog.getLicenseManager().getLicenseInfo());
+
+        if (isRunning) {
+            log("❌ Бот уже запущен");
+            return;
+        }
+
         isRunning = true;
 
         try {
@@ -699,6 +867,7 @@ public class BotUIController {
             if (arduinoPort == null || selectedCharacter == null) {
                 log("Ошибка: порт или персонаж не выбраны");
                 isRunning = false;
+                showAlert("Ошибка", "Порт Arduino или окно игры не выбраны!");
                 return;
             }
 
@@ -709,6 +878,7 @@ public class BotUIController {
             if (hpBar == null || mpBar == null || mobHpBar == null) {
                 log("Ошибка: неверный формат координат полос");
                 isRunning = false;
+                showAlert("Ошибка", "Неверный формат координат полос HP/MP!");
                 return;
             }
 
@@ -737,19 +907,29 @@ public class BotUIController {
                 webMonitor.startWebServer(8080);
                 log("🌐 Web monitor started on http://localhost:8080");
 
-                // Добавляем shutdown hook для корректного завершения
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    if (webMonitor != null) {
-                        webMonitor.stopWebServer();
-                    }
-                }));
-
             } catch (Exception e) {
                 log("❌ Failed to start web monitor: " + e.getMessage());
             }
+
+            log("✅ Бот успешно запущен!");
+
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log("❌ Ошибка запуска бота: " + e.getMessage());
+            e.printStackTrace();
+            isRunning = false;
+            startButton.setDisable(false);
+            stopButton.setDisable(true);
         }
+    }
+
+    private void showAlert(String title, String message) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(title);
+            alert.setHeaderText(null);
+            alert.setContentText(message);
+            alert.showAndWait();
+        });
     }
 
     @FXML

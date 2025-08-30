@@ -10,7 +10,13 @@
         <URL value="@styles.css" />
     </stylesheets>
     <children>
-        <TabPane fx:id="tabPane" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="0" AnchorPane.bottomAnchor="0">
+        <!-- Добавляем панель лицензии вверху -->
+        <HBox spacing="10" alignment="CENTER_RIGHT" styleClass="license-pane" AnchorPane.leftAnchor="10" AnchorPane.rightAnchor="10" AnchorPane.topAnchor="10">
+            <Button fx:id="licenseInfoButton" text="Инфо о лицензии" styleClass="license-button" onAction="#showLicenseInfo" />
+            <Button fx:id="deactivateLicenseButton" text="Удалить лицензию" styleClass="license-button-deactivate" onAction="#deactivateLicense" />
+        </HBox>
+
+        <TabPane fx:id="tabPane" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="50" AnchorPane.bottomAnchor="0">
             <tabs>
                 <Tab text="Основные настройки" closable="false">
                     <content>
