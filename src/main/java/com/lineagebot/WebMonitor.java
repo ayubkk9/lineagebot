@@ -1,38 +1,64 @@
 package com.lineagebot;
 
-import org.json.JSONObject;
-
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 
 public class WebMonitor {
-    private final BotController botController;
+    private BotController botController;
     private ServerSocket serverSocket;
     private boolean isRunning = false;
     private Thread serverThread;
+    private int port;
+
+    public WebMonitor() {
+        this.botController = null;
+        this.port = 8080;
+        startWebServer(8080);
+    }
 
     public WebMonitor(BotController botController) {
         this.botController = botController;
+        this.port = 8080;
+        startWebServer(8080);
     }
 
-    public void startWebServer(int port) {
-        if (isRunning) return;
+    public void startWebServer(int i) {
+        if (isRunning) {
+            System.out.println("Web server is already running");
+            return;
+        }
 
         try {
-            serverSocket = new ServerSocket(port);
-            serverSocket.setSoTimeout(1000); // Таймаут для accept
+            // Пытаемся использовать порт 8080, если занят - ищем свободный
+            int tryPort = port;
+            int maxAttempts = 10;
+
+            for (int attempt = 0; attempt < maxAttempts; attempt++) {
+                try {
+                    serverSocket = new ServerSocket(tryPort);
+                    this.port = tryPort;
+                    System.out.println("Web monitor started on port " + tryPort);
+                    break;
+                } catch (IOException e) {
+                    if (attempt == maxAttempts - 1) {
+                        System.out.println("Failed to find free port after " + maxAttempts + " attempts");
+                        return;
+                    }
+                    tryPort++; // Пробуем следующий порт
+                }
+            }
+
+            serverSocket.setSoTimeout(1000);
             isRunning = true;
 
             serverThread = new Thread(() -> {
-                System.out.println("Web server thread started");
+                System.out.println("Web server thread started on port " + port);
                 while (isRunning && !serverSocket.isClosed()) {
                     try {
                         Socket clientSocket = serverSocket.accept();
-                        System.out.println("Client connected: " + clientSocket.getInetAddress());
                         handleClient(clientSocket);
                     } catch (SocketTimeoutException e) {
-                        // Таймаут - нормальная ситуация, продолжаем цикл
                         continue;
                     } catch (IOException e) {
                         if (isRunning) {
@@ -46,94 +72,118 @@ public class WebMonitor {
             serverThread.setDaemon(true);
             serverThread.start();
 
-            System.out.println("Web monitor started on port " + port);
-
         } catch (IOException e) {
             System.out.println("Failed to start web server: " + e.getMessage());
         }
     }
 
+    public void stopWebServer() {
+        isRunning = false;
+        if (serverSocket != null && !serverSocket.isClosed()) {
+            try {
+                serverSocket.close();
+                System.out.println("Web server socket closed");
+            } catch (IOException e) {
+                System.out.println("Error closing server socket: " + e.getMessage());
+            }
+        }
+
+        // Ждем завершения потока
+        if (serverThread != null && serverThread.isAlive()) {
+            try {
+                serverThread.join(2000);
+                System.out.println("Web server thread stopped successfully");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.out.println("Interrupted while waiting for server thread");
+            }
+        }
+        System.out.println("Web monitor stopped");
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    // Метод для обновления контроллера бота
+    public void setBotController(BotController botController) {
+        this.botController = botController;
+        System.out.println("WebMonitor: BotController updated");
+    }
+
+    // Метод для очистки контроллера бота
+    public void clearBotController() {
+        this.botController = null;
+        System.out.println("WebMonitor: BotController cleared");
+    }
+
     private void handleClient(Socket clientSocket) {
         try (clientSocket; BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
              PrintWriter out = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream(), StandardCharsets.UTF_8), true)) {
-            try {
 
-                String requestLine = in.readLine();
-                if (requestLine == null) {
-                    System.out.println("Empty request");
-                    return;
-                }
+            String requestLine = in.readLine();
+            if (requestLine == null) return;
 
-                String[] requestParts = requestLine.split(" ");
-                if (requestParts.length < 2) {
-                    System.out.println("Invalid request: " + requestLine);
-                    return;
-                }
+            String[] requestParts = requestLine.split(" ");
+            if (requestParts.length < 2) return;
 
-                String method = requestParts[0];
-                String path = requestParts[1];
+            String method = requestParts[0];
+            String path = requestParts[1];
 
-                System.out.println("Request: " + method + " " + path);
-
-                // Читаем все заголовки
-                String line;
-                while ((line = in.readLine()) != null && !line.isEmpty()) {
-                    // Пропускаем заголовки
-                }
-
-                if ("GET".equals(method)) {
-                    if ("/stats".equals(path)) {
-                        sendJsonResponse(out, getStatsJson());
-                    } else {
-                        sendHtmlResponse(out, getHtmlPage());
-                    }
-                } else if ("OPTIONS".equals(method)) {
-                    // Обработка CORS preflight
-                    sendOptionsResponse(out);
-                } else {
-                    System.out.println("Unsupported method: " + method);
-                }
-
-            } catch (IOException e) {
-                System.out.println("Client handling error: " + e.getMessage());
+            // Читаем заголовки
+            String line;
+            while ((line = in.readLine()) != null && !line.isEmpty()) {
+                // Пропускаем заголовки
             }
+
+            if ("GET".equals(method)) {
+                if ("/stats".equals(path)) {
+                    sendJsonResponse(out, getStatsJson());
+                } else {
+                    sendHtmlResponse(out, getHtmlPage());
+                }
+            } else if ("OPTIONS".equals(method)) {
+                sendOptionsResponse(out);
+            }
+
         } catch (IOException e) {
-            System.out.println("Error closing socket: " + e.getMessage());
+            System.out.println("Client handling error: " + e.getMessage());
         }
     }
 
     private String getStatsJson() {
         try {
             if (botController == null) {
-                return "{\"status\":\"STOPPED\",\"mobsKilled\":0}";
+                return "{\"status\":\"STOPPED\",\"mobsKilled\":0,\"botActive\":false}";
             }
 
             BotStats stats = botController.getBotStats();
             if (stats == null) {
-                return "{\"status\":\"STOPPED\",\"mobsKilled\":0}";
+                return "{\"status\":\"STOPPED\",\"mobsKilled\":0,\"botActive\":false}";
             }
 
-            // Только статус и счетчик мобов
+            boolean isBotActive = botController.isBotRunning();
+
             return String.format(
-                    "{\"status\":\"%s\",\"mobsKilled\":%d}",
+                    "{\"status\":\"%s\",\"mobsKilled\":%d,\"botActive\":%b}",
                     stats.getStatus(),
-                    stats.getMobsKilled()
+                    stats.getMobsKilled(),
+                    isBotActive
             );
 
         } catch (Exception e) {
-            System.out.println("Error in getStatsJson: " + e.getMessage());
-            return "{\"status\":\"ERROR\",\"mobsKilled\":0}";
+            return "{\"status\":\"ERROR\",\"mobsKilled\":0,\"botActive\":false}";
         }
     }
 
     private void sendJsonResponse(PrintWriter out, String json) {
         out.println("HTTP/1.1 200 OK");
-        out.println("Content-Type: application/json"); // Убираем charset=UTF-8
+        out.println("Content-Type: application/json");
         out.println("Access-Control-Allow-Origin: *");
         out.println("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
         out.println("Access-Control-Allow-Headers: Content-Type, Authorization");
         out.println("Connection: close");
-        out.println(); // Пустая строка перед телом
+        out.println();
         out.println(json);
         out.flush();
     }
@@ -174,6 +224,8 @@ public class WebMonitor {
                 "        .stat-value { color: white; font-size: 42px; font-weight: bold; text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6); }" +
                 "        .status-running { color: #4CAF50 !important; }" +
                 "        .status-stopped { color: #F44336 !important; }" +
+                "        .bot-active { color: #4CAF50 !important; }" +
+                "        .bot-inactive { color: #FF9800 !important; }" +
                 "        .last-update { text-align: center; color: rgba(255, 255, 255, 0.6); font-size: 14px; margin-top: 30px; }" +
                 "        @media (max-width: 600px) { .grid { grid-template-columns: 1fr; gap: 20px; } .dashboard { padding: 30px 20px; } .title { font-size: 28px; } }" +
                 "    </style>" +
@@ -190,6 +242,10 @@ public class WebMonitor {
                 "                <div class='stat-label'>УБИТО МОБОВ</div>" +
                 "                <div class='stat-value' id='mobsKilled'>0</div>" +
                 "            </div>" +
+                "            <div class='stat-card'>" +
+                "                <div class='stat-label'>БОТ АКТИВЕН</div>" +
+                "                <div class='stat-value' id='botActive'>—</div>" +
+                "            </div>" +
                 "        </div>" +
                 "        <div class='last-update' id='lastUpdate'>Последнее обновление: —</div>" +
                 "    </div>" +
@@ -201,13 +257,21 @@ public class WebMonitor {
                 "                    const statusElement = document.getElementById('status');" +
                 "                    statusElement.textContent = data.status === 'RUNNING' ? 'РАБОТАЕТ' : 'ОСТАНОВЛЕН';" +
                 "                    statusElement.className = 'stat-value ' + (data.status === 'RUNNING' ? 'status-running' : 'status-stopped');" +
+                "                    " +
                 "                    document.getElementById('mobsKilled').textContent = data.mobsKilled;" +
+                "                    " +
+                "                    const botActiveElement = document.getElementById('botActive');" +
+                "                    botActiveElement.textContent = data.botActive ? 'ДА' : 'НЕТ';" +
+                "                    botActiveElement.className = 'stat-value ' + (data.botActive ? 'bot-active' : 'bot-inactive');" +
+                "                    " +
                 "                    document.getElementById('lastUpdate').textContent = 'Последнее обновление: ' + new Date().toLocaleTimeString();" +
                 "                })" +
                 "                .catch(error => {" +
                 "                    console.error('Ошибка:', error);" +
                 "                    document.getElementById('status').textContent = 'ОШИБКА';" +
                 "                    document.getElementById('status').className = 'stat-value status-stopped';" +
+                "                    document.getElementById('botActive').textContent = 'ОШИБКА';" +
+                "                    document.getElementById('botActive').className = 'stat-value bot-inactive';" +
                 "                });" +
                 "        }" +
                 "        setInterval(updateStats, 2000);" +
@@ -218,27 +282,6 @@ public class WebMonitor {
 
         System.out.println("HTML length: " + html.length());
         return html;
-    }
-
-    public void stopWebServer() {
-        isRunning = false;
-        if (serverSocket != null && !serverSocket.isClosed()) {
-            try {
-                serverSocket.close();
-            } catch (IOException e) {
-                System.out.println("Error closing server: " + e.getMessage());
-            }
-        }
-
-        // Ждем завершения потока
-        if (serverThread != null && serverThread.isAlive()) {
-            try {
-                serverThread.join(2000); // Ждем 2 секунды
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        System.out.println("Web monitor stopped");
     }
 
     public boolean isRunning() {

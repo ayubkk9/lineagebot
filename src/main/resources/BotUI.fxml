@@ -5,118 +5,125 @@
 <?import javafx.scene.text.*?>
 
 <?import java.net.URL?>
-<AnchorPane fx:id="mainPane" styleClass="main-pane" prefWidth="800" prefHeight="600" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
+<AnchorPane fx:id="mainPane" styleClass="main-pane" prefWidth="800" prefHeight="600" xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
     <stylesheets>
-        <URL value="@styles.css" />
+        <URL value="@styles.css"/>
     </stylesheets>
-    <children>
-        <!-- Добавляем панель лицензии вверху -->
-        <HBox spacing="10" alignment="CENTER_RIGHT" styleClass="license-pane" AnchorPane.leftAnchor="10" AnchorPane.rightAnchor="10" AnchorPane.topAnchor="10">
-            <Button fx:id="licenseInfoButton" text="Инфо о лицензии" styleClass="license-button" onAction="#showLicenseInfo" />
-            <Button fx:id="deactivateLicenseButton" text="Удалить лицензию" styleClass="license-button-deactivate" onAction="#deactivateLicense" />
-        </HBox>
+    <!-- Добавляем панель лицензии вверху -->
+    <HBox spacing="10" alignment="CENTER_RIGHT" styleClass="license-pane" AnchorPane.leftAnchor="10"
+          AnchorPane.rightAnchor="10" AnchorPane.topAnchor="10">
+        <Button fx:id="licenseInfoButton" text="Инфо о лицензии" styleClass="license-button"
+                onAction="#showLicenseInfo"/>
+        <Button fx:id="deactivateLicenseButton" text="Удалить лицензию" styleClass="license-button-deactivate"
+                onAction="#deactivateLicense"/>
+    </HBox>
 
-        <TabPane fx:id="tabPane" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="50" AnchorPane.bottomAnchor="0">
-            <tabs>
-                <Tab text="Основные настройки" closable="false">
-                    <content>
-                        <ScrollPane fitToWidth="true" fitToHeight="true">
-                            <content>
-                                <VBox spacing="10" alignment="TOP_CENTER" maxWidth="Infinity" maxHeight="Infinity">
-                                    <!-- Панель выбора темы -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <Label text="Тема:" styleClass="label" />
-                                        <ComboBox fx:id="themeComboBox" prefWidth="150" />
-                                    </HBox>
+    <TabPane fx:id="tabPane" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="50"
+             AnchorPane.bottomAnchor="0">
+        <Tab text="Основные настройки" closable="false">
+            <ScrollPane fitToWidth="true" fitToHeight="true">
+                <VBox spacing="10" alignment="TOP_CENTER" maxWidth="Infinity" maxHeight="Infinity">
+                    <!-- Панель выбора темы -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <Label text="Тема:" styleClass="label"/>
+                        <ComboBox fx:id="themeComboBox" prefWidth="150"/>
+                    </HBox>
 
-                                    <!-- Панель выбора персонажа -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <Label text="Ник персонажа:" styleClass="label" />
-                                        <TextField fx:id="characterNameField" prefWidth="150" />
-                                        <Button fx:id="detectGameWindowButton" text="Найти окно" styleClass="button" onAction="#detectGameWindow" />
-                                        <ComboBox fx:id="characterComboBox" prefWidth="250" />
-                                        <Button fx:id="activateWindowButton" text="Активировать" styleClass="button" onAction="#activateWindow" />
-                                    </HBox>
+                    <!-- Панель выбора персонажа -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <Label text="Ник персонажа:" styleClass="label"/>
+                        <TextField fx:id="characterNameField" prefWidth="150"/>
+                        <Button fx:id="detectGameWindowButton" text="Найти окно" styleClass="button"
+                                onAction="#detectGameWindow"/>
+                        <ComboBox fx:id="characterComboBox" prefWidth="250"/>
+                        <Button fx:id="activateWindowButton" text="Активировать" styleClass="button"
+                                onAction="#activateWindow"/>
+                    </HBox>
 
-                                    <!-- Панель выбора класса -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <Label text="Класс:" styleClass="label" />
-                                        <ComboBox fx:id="classComboBox" prefWidth="200" />
-                                    </HBox>
+                    <!-- Панель выбора класса -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <Label text="Класс:" styleClass="label"/>
+                        <ComboBox fx:id="classComboBox" prefWidth="200"/>
+                    </HBox>
 
-                                    <!-- Панель настроек HP/MP -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <VBox spacing="5">
-                                            <Label text="HP (%):" styleClass="label" />
-                                            <TextField fx:id="hpPercentField" prefWidth="100" />
-                                            <TextField fx:id="hpBarField" prefWidth="150" />
-                                            <Button fx:id="selectHpBarButton" text="Выбрать HP" styleClass="button" onAction="#selectHpBar" />
-                                            <TextField fx:id="hpDisplayField" prefWidth="100" editable="false" />
-                                            <ProgressBar fx:id="hpProgressBar" styleClass="progress-bar" prefWidth="150" />
-                                        </VBox>
-                                        <VBox spacing="5">
-                                            <Label text="MP (%):" styleClass="label" />
-                                            <TextField fx:id="mpPercentField" prefWidth="100" />
-                                            <TextField fx:id="mpBarField" prefWidth="150" />
-                                            <Button fx:id="selectMpBarButton" text="Выбрать MP" styleClass="button" onAction="#selectMpBar" />
-                                            <TextField fx:id="mpDisplayField" prefWidth="100" editable="false" />
-                                            <ProgressBar fx:id="mpProgressBar" styleClass="progress-bar" prefWidth="150" />
-                                        </VBox>
-                                        <VBox spacing="5">
-                                            <Label text="HP моба:" styleClass="label" />
-                                            <TextField fx:id="mobHpBarField" prefWidth="150" />
-                                            <Button fx:id="selectMobHpBarButton" text="Выбрать HP моба" styleClass="button" onAction="#selectMobHpBar" />
-                                        </VBox>
-                                    </HBox>
-
-                                    <!-- Панель порта Arduino -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <Label text="Порт Arduino:" styleClass="label" />
-                                        <ComboBox fx:id="arduinoPortComboBox" prefWidth="150" />
-                                    </HBox>
-
-                                    <!-- Панель действий -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <Label text="Скилл/действие:" styleClass="label" />
-                                        <ComboBox fx:id="skillComboBox" prefWidth="150" />
-                                        <Label text="Клавиши:" styleClass="label" />
-                                        <TextField fx:id="keysField" prefWidth="100" />
-                                        <Label text="Условие:" styleClass="label" />
-                                        <ComboBox fx:id="conditionComboBox" prefWidth="100" />
-                                        <Button fx:id="addActionButton" text="Добавить" styleClass="button" onAction="#addAction" />
-                                        <Button fx:id="editActionButton" text="Редактировать" styleClass="button" onAction="#editAction" />
-                                        <Button fx:id="deleteActionButton" text="Удалить" styleClass="button" onAction="#deleteAction" />
-                                    </HBox>
-
-                                    <!-- Таблица действий -->
-                                    <TableView fx:id="actionsTable" prefHeight="200" VBox.vgrow="ALWAYS">
-                                        <columns>
-                                            <TableColumn fx:id="actionTypeColumn" text="Действие" prefWidth="200" />
-                                            <TableColumn fx:id="keysColumn" text="Клавиши" prefWidth="150" />
-                                            <TableColumn fx:id="conditionColumn" text="Условие" prefWidth="150" />
-                                        </columns>
-                                    </TableView>
-
-                                    <!-- Панель управления ботом -->
-                                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
-                                        <Button fx:id="startButton" text="Запустить" styleClass="button" onAction="#startBot" />
-                                        <Button fx:id="stopButton" text="Остановить" styleClass="button" onAction="#stopBot" />
-                                        <Button fx:id="saveSettingsButton" text="Сохранить настройки" styleClass="button" onAction="#saveSettings" />
-                                        <Button fx:id="loadSettingsButton" text="Загрузить настройки" styleClass="button" onAction="#loadSettings" />
-                                    </HBox>
-                                </VBox>
-                            </content>
-                        </ScrollPane>
-                    </content>
-                </Tab>
-                <Tab text="Логи" closable="false">
-                    <content>
-                        <VBox fx:id="logPane" spacing="10" alignment="TOP_CENTER" maxWidth="Infinity" maxHeight="Infinity">
-                            <TextArea fx:id="logArea" prefHeight="150" editable="false" VBox.vgrow="ALWAYS" />
+                    <!-- Панель настроек HP/MP -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <VBox spacing="5">
+                            <Label text="HP (%):" styleClass="label"/>
+                            <TextField fx:id="hpPercentField" prefWidth="100"/>
+                            <TextField fx:id="hpBarField" prefWidth="150"/>
+                            <Button fx:id="selectHpBarButton" text="Выбрать HP" styleClass="button"
+                                    onAction="#selectHpBar"/>
+                            <TextField fx:id="hpDisplayField" prefWidth="100" editable="false"/>
+                            <ProgressBar fx:id="hpProgressBar" styleClass="progress-bar" prefWidth="150"/>
                         </VBox>
-                    </content>
-                </Tab>
-            </tabs>
-        </TabPane>
-    </children>
+                        <VBox spacing="5">
+                            <Label text="MP (%):" styleClass="label"/>
+                            <TextField fx:id="mpPercentField" prefWidth="100"/>
+                            <TextField fx:id="mpBarField" prefWidth="150"/>
+                            <Button fx:id="selectMpBarButton" text="Выбрать MP" styleClass="button"
+                                    onAction="#selectMpBar"/>
+                            <TextField fx:id="mpDisplayField" prefWidth="100" editable="false"/>
+                            <ProgressBar fx:id="mpProgressBar" styleClass="progress-bar" prefWidth="150"/>
+                        </VBox>
+                        <VBox spacing="5">
+                            <Label text="HP моба:" styleClass="label"/>
+                            <TextField fx:id="mobHpBarField" prefWidth="150"/>
+                            <Button fx:id="selectMobHpBarButton" text="Выбрать HP моба" styleClass="button"
+                                    onAction="#selectMobHpBar"/>
+                        </VBox>
+                    </HBox>
+
+                    <!-- Панель порта Arduino -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <Label text="Порт Arduino:" styleClass="label"/>
+                        <ComboBox fx:id="arduinoPortComboBox" prefWidth="150"/>
+                    </HBox>
+
+                    <!-- Панель действий -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <Label text="Скилл/действие:" styleClass="label"/>
+                        <ComboBox fx:id="skillComboBox" prefWidth="150"/>
+                        <Label text="Клавиши:" styleClass="label"/>
+                        <TextField fx:id="keysField" prefWidth="100"/>
+                        <Label text="Условие:" styleClass="label"/>
+                        <ComboBox fx:id="conditionComboBox" prefWidth="100"/>
+                        <Button fx:id="addActionButton" text="Добавить" styleClass="button"
+                                onAction="#addAction"/>
+                        <Button fx:id="editActionButton" text="Редактировать" styleClass="button"
+                                onAction="#editAction"/>
+                        <Button fx:id="deleteActionButton" text="Удалить" styleClass="button"
+                                onAction="#deleteAction"/>
+                    </HBox>
+
+                    <!-- Таблица действий -->
+                    <TableView fx:id="actionsTable" prefHeight="200" VBox.vgrow="ALWAYS">
+                        <columns>
+                            <TableColumn fx:id="actionTypeColumn" text="Действие" prefWidth="200"/>
+                            <TableColumn fx:id="keysColumn" text="Клавиши" prefWidth="150"/>
+                            <TableColumn fx:id="conditionColumn" text="Условие" prefWidth="150"/>
+                        </columns>
+                    </TableView>
+
+                    <!-- Панель управления ботом -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
+                        <Button fx:id="startButton" text="Запустить" styleClass="button"
+                                onAction="#startBot"/>
+                        <Button fx:id="stopButton" text="Остановить" styleClass="button"
+                                onAction="#stopBot"/>
+                        <Button fx:id="saveSettingsButton" text="Сохранить настройки" styleClass="button"
+                                onAction="#saveSettings"/>
+                        <Button fx:id="loadSettingsButton" text="Загрузить настройки" styleClass="button"
+                                onAction="#loadSettings"/>
+                    </HBox>
+                </VBox>
+            </ScrollPane>
+        </Tab>
+        <Tab text="Логи" closable="false">
+            <VBox fx:id="logPane" spacing="10" alignment="TOP_CENTER" maxWidth="Infinity" maxHeight="Infinity">
+                <TextArea fx:id="logArea" prefHeight="150" editable="false" VBox.vgrow="ALWAYS"/>
+            </VBox>
+        </Tab>
+    </TabPane>
 </AnchorPane>

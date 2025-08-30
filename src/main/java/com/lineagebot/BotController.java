@@ -49,8 +49,7 @@ public class BotController {
     }
 
     public boolean isBotRunning() {
-        boolean isRunning = false;
-        return false;
+        return running;
     }
 
     public String getDebugInfo() {

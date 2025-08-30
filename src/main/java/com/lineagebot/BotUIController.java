@@ -28,6 +28,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Popup;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
@@ -43,15 +44,14 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class BotUIController {
+    public VBox logPane;
     @FXML private TextField characterNameField;
     @FXML private ComboBox<String> characterComboBox;
     @FXML private Button detectGameWindowButton;
@@ -130,7 +130,7 @@ public class BotUIController {
         log("Инициализация контроллера начата");
         try {
             String cssPath = getClass().getResource("/com/lineagebot/styles.css") != null ?
-                    getClass().getResource("/com/lineagebot/styles.css").toExternalForm() : "CSS не найден";
+                    Objects.requireNonNull(getClass().getResource("/com/lineagebot/styles.css")).toExternalForm() : "CSS не найден";
             log("Путь к styles.css: " + cssPath);
 
             if (detectGameWindowButton == null) {
@@ -906,6 +906,11 @@ public class BotUIController {
                 webMonitor = new WebMonitor(botController);
                 webMonitor.startWebServer(8080);
                 log("🌐 Web monitor started on http://localhost:8080");
+                if (webMonitor != null) {
+                    webMonitor.stopWebServer();
+                }
+                webMonitor = new WebMonitor(botController); // Передаем контроллер бота
+                log("🌐 Web monitor updated with bot controller");
 
             } catch (Exception e) {
                 log("❌ Failed to start web monitor: " + e.getMessage());
@@ -942,11 +947,11 @@ public class BotUIController {
             botController.stopBot();
         }
 
-        // Останавливаем веб-монитор
+        // Не останавливаем веб-монитор полностью, только обновляем
         if (webMonitor != null) {
             webMonitor.stopWebServer();
-            webMonitor = null;
-            log("🌐 Web monitor stopped");
+            webMonitor = new WebMonitor(); // Перезапускаем без контроллера бота
+            log("🌐 Web monitor restarted without bot controller");
         }
 
         if (hpMpUpdateThread != null) {
