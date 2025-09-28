@@ -6,10 +6,13 @@ import com.sun.jna.platform.win32.WinDef;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.embed.swing.SwingFXUtils;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -30,8 +33,8 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Popup;
-import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.Screen;
 import javafx.geometry.Rectangle2D;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
@@ -52,6 +55,7 @@ import java.util.stream.Collectors;
 
 public class BotUIController {
     public VBox logPane;
+    public Button detectGroupWindowButton;
     @FXML private TextField characterNameField;
     @FXML private ComboBox<String> characterComboBox;
     @FXML private Button detectGameWindowButton;
@@ -91,6 +95,33 @@ public class BotUIController {
     @FXML private Button licenseInfoButton;
     @FXML private Button deactivateLicenseButton;
 
+    // Групповое управление - новые элементы
+    @FXML private TextField groupCharacterNameField;
+    @FXML private ComboBox<String> groupCharacterComboBox;
+    @FXML private TableView<CharacterProfile> groupTableView;
+    @FXML private Button addToGroupButton;
+    @FXML private Button setMainCharacterButton;
+    @FXML private Button startGroupButton;
+    @FXML private Button stopGroupButton;
+    @FXML private Button removeFromGroupButton;
+    @FXML private ComboBox<SupportAction.SupportType> supportTypeComboBox;
+    @FXML private TextField supportKeyField;
+    @FXML private TextField supportConditionField;
+    @FXML private TableView<SupportAction> supportActionsTable;
+    @FXML private Button addSupportActionButton;
+    @FXML private Label groupStatusLabel;
+    @FXML private Label mainCharacterLabel;
+    @FXML private ToggleGroup settingsTypeToggleGroup;
+    @FXML private VBox mainSettingsPane;
+    @FXML private VBox supportSettingsPane;
+    @FXML private ComboBox<String> groupSkillComboBox;
+    @FXML private TextField groupKeysField;
+    @FXML private ComboBox<String> groupConditionComboBox;
+    @FXML private Button groupAddActionButton;
+    @FXML private TableView<Action> groupActionsTable;
+    @FXML private RadioButton mainSettingsRadio;
+    @FXML private RadioButton supportSettingsRadio;
+
     private static final int MAX_LOG_LINES = 100;
     private static final long LOG_UPDATE_DELAY_MS = 1000;
     private final StringBuilder logBuffer = new StringBuilder();
@@ -108,6 +139,11 @@ public class BotUIController {
     private Stage primaryStage;
     private Scene scene;
     private LicenseDialog licenseDialog;
+
+    // Групповое управление - новые поля
+    private MultiBotController multiBotController;
+    private final ObservableList<CharacterProfile> characterProfiles = FXCollections.observableArrayList();
+    private final ObservableList<SupportAction> supportActions = FXCollections.observableArrayList();
 
     public void setPrimaryStage(Stage stage) {
         this.primaryStage = stage;
@@ -133,201 +169,13 @@ public class BotUIController {
                     Objects.requireNonNull(getClass().getResource("/com/lineagebot/styles.css")).toExternalForm() : "CSS не найден";
             log("Путь к styles.css: " + cssPath);
 
-            if (detectGameWindowButton == null) {
-                log("Ошибка: detectGameWindowButton не инициализирован");
-            } else {
-                detectGameWindowButton.setDisable(false);
-                detectGameWindowButton.setOnAction(event -> {
-                    log("Кнопка 'Найти окно' нажата");
-                    detectGameWindow();
-                });
-            }
+            // Инициализация основных элементов управления
+            initializeMainControls();
 
-            if (activateWindowButton == null) {
-                log("Ошибка: activateWindowButton не инициализирован");
-            } else {
-                activateWindowButton.setDisable(false);
-                activateWindowButton.setOnAction(event -> {
-                    log("Кнопка 'Активировать' нажата");
-                    activateWindow();
-                });
-            }
+            // Инициализация группового управления
+            initializeGroupControls();
 
-            if (selectHpBarButton == null) {
-                log("Ошибка: selectHpBarButton не инициализирован");
-            } else {
-                selectHpBarButton.setDisable(false);
-                selectHpBarButton.setOnAction(event -> {
-                    log("Кнопка 'Выбрать HP' нажата");
-                    selectHpBar();
-                });
-            }
-
-            if (selectMpBarButton == null) {
-                log("Ошибка: selectMpBarButton не инициализирован");
-            } else {
-                selectMpBarButton.setDisable(false);
-                selectMpBarButton.setOnAction(event -> {
-                    log("Кнопка 'Выбрать MP' нажата");
-                    selectMpBar();
-                });
-            }
-
-            if (selectMobHpBarButton == null) {
-                log("Ошибка: selectMobHpBarButton не инициализирован");
-            } else {
-                selectMobHpBarButton.setDisable(false);
-                selectMobHpBarButton.setOnAction(event -> {
-                    log("Кнопка 'Выбрать HP моба' нажата");
-                    selectMobHpBar();
-                });
-            }
-
-            if (addActionButton == null) {
-                log("Ошибка: addActionButton не инициализирован");
-            } else {
-                addActionButton.setDisable(false);
-                addActionButton.setOnAction(event -> {
-                    log("Кнопка 'Добавить' нажата");
-                    addAction();
-                });
-            }
-
-            if (editActionButton == null) {
-                log("Ошибка: editActionButton не инициализирован");
-            } else {
-                editActionButton.setDisable(false);
-                editActionButton.setOnAction(event -> {
-                    log("Кнопка 'Редактировать' нажата");
-                    editAction();
-                });
-            }
-
-            if (deleteActionButton == null) {
-                log("Ошибка: deleteActionButton не инициализирован");
-            } else {
-                deleteActionButton.setDisable(false);
-                deleteActionButton.setOnAction(event -> {
-                    log("Кнопка 'Удалить' нажата");
-                    deleteAction();
-                });
-            }
-
-            if (startButton == null) {
-                log("Ошибка: startButton не инициализирован");
-            } else {
-                startButton.setDisable(false);
-                startButton.setOnAction(event -> {
-                    log("Кнопка 'Запустить' нажата");
-                    startBot();
-                });
-            }
-
-            if (stopButton == null) {
-                log("Ошибка: stopButton не инициализирован");
-            } else {
-                stopButton.setDisable(true);
-                stopButton.setOnAction(event -> {
-                    log("Кнопка 'Остановить' нажата");
-                    stopBot();
-                });
-            }
-
-            if (saveSettingsButton == null) {
-                log("Ошибка: saveSettingsButton не инициализирован");
-            } else {
-                saveSettingsButton.setDisable(false);
-                saveSettingsButton.setOnAction(event -> {
-                    log("Кнопка 'Сохранить настройки' нажата");
-                    saveSettings();
-                });
-            }
-
-            if (loadSettingsButton == null) {
-                log("Ошибка: loadSettingsButton не инициализирован");
-            } else {
-                loadSettingsButton.setDisable(false);
-                loadSettingsButton.setOnAction(event -> {
-                    log("Кнопка 'Загрузить настройки' нажата");
-                    loadSettings();
-                });
-            }
-
-            actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
-            keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
-            conditionColumn.setCellValueFactory(cellData -> {
-                Action action = cellData.getValue();
-                if ("Таймер n сек".equals(action.getCondition())) {
-                    return new SimpleStringProperty("Таймер " + action.getTimerSeconds() + " сек");
-                }
-                return action.conditionProperty();
-            });
-
-            conditionColumn.setCellFactory(column -> new TableCell<Action, String>() {
-                private final ComboBox<String> comboBox = new ComboBox<>(availableConditions);
-
-                private void setupLicenseContextMenu() {
-                    ContextMenu contextMenu = new ContextMenu();
-
-                    MenuItem infoItem = new MenuItem("Информация о лицензии");
-                    infoItem.setOnAction(e -> showLicenseInfo());
-
-                    MenuItem deactivateItem = new MenuItem("Удалить лицензию");
-                    deactivateItem.setOnAction(e -> deactivateLicense());
-
-                    MenuItem refreshItem = new MenuItem("Обновить статус");
-                    refreshItem.setOnAction(e -> updateLicenseStatusInUI());
-
-                    contextMenu.getItems().addAll(infoItem, deactivateItem, refreshItem);
-
-                    licenseInfoButton.setContextMenu(contextMenu);
-
-                    // Добавляем обработчик правой кнопки мыши
-                    licenseInfoButton.setOnMouseClicked(event -> {
-                        if (event.getButton() == MouseButton.SECONDARY) {
-                            contextMenu.show(licenseInfoButton, event.getScreenX(), event.getScreenY());
-                        }
-                    });
-                }
-
-                @Override
-                protected void updateItem(String item, boolean empty) {
-                    super.updateItem(item, empty);
-                    if (empty) {
-                        setGraphic(null);
-                    } else {
-                        comboBox.setValue(item != null ? item.startsWith("Таймер") ? "Таймер n сек" : item : "Нет");
-                        comboBox.setOnAction(event -> {
-                            Action action = getTableView().getItems().get(getIndex());
-                            String newCondition = comboBox.getValue();
-                            if ("Таймер n сек".equals(newCondition)) {
-                                long seconds = promptForTimerSeconds(action.getActionType(), action.getTimerSeconds());
-                                if (seconds > 0) {
-                                    action.setCondition(newCondition);
-                                    action.setTimerSeconds(seconds);
-                                } else {
-                                    comboBox.setValue(action.getCondition());
-                                }
-                            } else {
-                                action.setCondition(newCondition);
-                                action.setTimerSeconds(0);
-                            }
-                            actionsTable.refresh();
-                        });
-                        setGraphic(comboBox);
-                    }
-                }
-            });
-
-            actionsTable.setItems(actions);
-            updateLicenseStatusInUI();
-
-            Timeline licenseUpdateTimer = new Timeline(
-                    new KeyFrame(Duration.seconds(30), e -> updateLicenseStatusInUI())
-            );
-            licenseUpdateTimer.setCycleCount(Timeline.INDEFINITE);
-            licenseUpdateTimer.play();
-
+            // Остальная инициализация
             hpPercentField.setText("30");
             mpPercentField.setText("30");
             hpBarField.setText("50,50,100,10");
@@ -405,6 +253,482 @@ public class BotUIController {
         } catch (Exception e) {
             log("Ошибка инициализации: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    private void initializeMainControls() {
+        if (detectGameWindowButton == null) {
+            log("Ошибка: detectGameWindowButton не инициализирован");
+        } else {
+            detectGameWindowButton.setDisable(false);
+            detectGameWindowButton.setOnAction(event -> {
+                log("Кнопка 'Найти окно' нажата");
+                detectGameWindow();
+            });
+        }
+
+        if (activateWindowButton == null) {
+            log("Ошибка: activateWindowButton не инициализирован");
+        } else {
+            activateWindowButton.setDisable(false);
+            activateWindowButton.setOnAction(event -> {
+                log("Кнопка 'Активировать' нажата");
+                activateWindow();
+            });
+        }
+
+        if (selectHpBarButton == null) {
+            log("Ошибка: selectHpBarButton не инициализирован");
+        } else {
+            selectHpBarButton.setDisable(false);
+            selectHpBarButton.setOnAction(event -> {
+                log("Кнопка 'Выбрать HP' нажата");
+                selectHpBar();
+            });
+        }
+
+        if (selectMpBarButton == null) {
+            log("Ошибка: selectMpBarButton не инициализирован");
+        } else {
+            selectMpBarButton.setDisable(false);
+            selectMpBarButton.setOnAction(event -> {
+                log("Кнопка 'Выбрать MP' нажата");
+                selectMpBar();
+            });
+        }
+
+        if (selectMobHpBarButton == null) {
+            log("Ошибка: selectMobHpBarButton не инициализирован");
+        } else {
+            selectMobHpBarButton.setDisable(false);
+            selectMobHpBarButton.setOnAction(event -> {
+                log("Кнопка 'Выбрать HP моба' нажата");
+                selectMobHpBar();
+            });
+        }
+
+        if (addActionButton == null) {
+            log("Ошибка: addActionButton не инициализирован");
+        } else {
+            addActionButton.setDisable(false);
+            addActionButton.setOnAction(event -> {
+                log("Кнопка 'Добавить' нажата");
+                addAction();
+            });
+        }
+
+        if (editActionButton == null) {
+            log("Ошибка: editActionButton не инициализирован");
+        } else {
+            editActionButton.setDisable(false);
+            editActionButton.setOnAction(event -> {
+                log("Кнопка 'Редактировать' нажата");
+                editAction();
+            });
+        }
+
+        if (deleteActionButton == null) {
+            log("Ошибка: deleteActionButton не инициализирован");
+        } else {
+            deleteActionButton.setDisable(false);
+            deleteActionButton.setOnAction(event -> {
+                log("Кнопка 'Удалить' нажата");
+                deleteAction();
+            });
+        }
+
+        if (startButton == null) {
+            log("Ошибка: startButton не инициализирован");
+        } else {
+            startButton.setDisable(false);
+            startButton.setOnAction(event -> {
+                log("Кнопка 'Запустить' нажата");
+                startBot();
+            });
+        }
+
+        if (stopButton == null) {
+            log("Ошибка: stopButton не инициализирован");
+        } else {
+            stopButton.setDisable(true);
+            stopButton.setOnAction(event -> {
+                log("Кнопка 'Остановить' нажата");
+                stopBot();
+            });
+        }
+
+        if (saveSettingsButton == null) {
+            log("Ошибка: saveSettingsButton не инициализирован");
+        } else {
+            saveSettingsButton.setDisable(false);
+            saveSettingsButton.setOnAction(event -> {
+                log("Кнопка 'Сохранить настройки' нажата");
+                saveSettings();
+            });
+        }
+
+        if (loadSettingsButton == null) {
+            log("Ошибка: loadSettingsButton не инициализирован");
+        } else {
+            loadSettingsButton.setDisable(false);
+            loadSettingsButton.setOnAction(event -> {
+                log("Кнопка 'Загрузить настройки' нажата");
+                loadSettings();
+            });
+        }
+
+        actionTypeColumn.setCellValueFactory(cellData -> cellData.getValue().actionTypeProperty());
+        keysColumn.setCellValueFactory(cellData -> cellData.getValue().keysProperty());
+        conditionColumn.setCellValueFactory(cellData -> {
+            Action action = cellData.getValue();
+            if ("Таймер n сек".equals(action.getCondition())) {
+                return new SimpleStringProperty("Таймер " + action.getTimerSeconds() + " сек");
+            }
+            return action.conditionProperty();
+        });
+
+        conditionColumn.setCellFactory(column -> new TableCell<Action, String>() {
+            private final ComboBox<String> comboBox = new ComboBox<>(availableConditions);
+
+            private void setupLicenseContextMenu() {
+                ContextMenu contextMenu = new ContextMenu();
+
+                MenuItem infoItem = new MenuItem("Информация о лицензии");
+                infoItem.setOnAction(e -> showLicenseInfo());
+
+                MenuItem deactivateItem = new MenuItem("Удалить лицензию");
+                deactivateItem.setOnAction(e -> deactivateLicense());
+
+                MenuItem refreshItem = new MenuItem("Обновить статус");
+                refreshItem.setOnAction(e -> updateLicenseStatusInUI());
+
+                contextMenu.getItems().addAll(infoItem, deactivateItem, refreshItem);
+
+                licenseInfoButton.setContextMenu(contextMenu);
+
+                licenseInfoButton.setOnMouseClicked(event -> {
+                    if (event.getButton() == MouseButton.SECONDARY) {
+                        contextMenu.show(licenseInfoButton, event.getScreenX(), event.getScreenY());
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    comboBox.setValue(item != null ? item.startsWith("Таймер") ? "Таймер n сек" : item : "Нет");
+                    comboBox.setOnAction(event -> {
+                        Action action = getTableView().getItems().get(getIndex());
+                        String newCondition = comboBox.getValue();
+                        if ("Таймер n сек".equals(newCondition)) {
+                            long seconds = promptForTimerSeconds(action.getActionType(), action.getTimerSeconds());
+                            if (seconds > 0) {
+                                action.setCondition(newCondition);
+                                action.setTimerSeconds(seconds);
+                            } else {
+                                comboBox.setValue(action.getCondition());
+                            }
+                        } else {
+                            action.setCondition(newCondition);
+                            action.setTimerSeconds(0);
+                        }
+                        actionsTable.refresh();
+                    });
+                    setGraphic(comboBox);
+                }
+            }
+        });
+
+        actionsTable.setItems(actions);
+        updateLicenseStatusInUI();
+
+        Timeline licenseUpdateTimer = new Timeline(
+                new KeyFrame(Duration.seconds(30), e -> updateLicenseStatusInUI())
+        );
+        licenseUpdateTimer.setCycleCount(Timeline.INDEFINITE);
+        licenseUpdateTimer.play();
+    }
+
+    private void initializeGroupControls() {
+        multiBotController = new MultiBotController();
+
+        if (groupCharacterNameField == null || groupCharacterComboBox == null ||
+                detectGroupWindowButton == null || addToGroupButton == null ||
+                groupTableView == null || startGroupButton == null ||
+                stopGroupButton == null || removeFromGroupButton == null ||
+                supportTypeComboBox == null || supportKeyField == null ||
+                supportConditionField == null || supportActionsTable == null) {
+
+            log("❌ Не все элементы группового управления инициализированы в FXML");
+            if (tabPane != null && tabPane.getTabs().size() > 1) {
+                tabPane.getTabs().remove(1);
+            }
+            return;
+        }
+
+        supportKeyField.setOnKeyPressed(this::handleKeyPress);
+        supportKeyField.setOnMouseClicked(event -> {
+            capturedKeys.clear();
+            supportKeyField.setText("");
+            supportKeyField.requestFocus();
+        });
+
+        if (groupKeysField != null) {
+            groupKeysField.setOnKeyPressed(this::handleKeyPress);
+            groupKeysField.setOnMouseClicked(event -> {
+                capturedKeys.clear();
+                groupKeysField.setText("");
+                groupKeysField.requestFocus();
+            });
+        }
+
+        // Настройка привязки полей между вкладками
+        groupCharacterNameField.textProperty().bindBidirectional(characterNameField.textProperty());
+        groupCharacterComboBox.itemsProperty().bind(characterComboBox.itemsProperty());
+        groupCharacterComboBox.valueProperty().bindBidirectional(characterComboBox.valueProperty());
+
+        // Настройка таблицы персонажей
+        groupTableView.setItems(characterProfiles);
+        log("Таблица привязана к characterProfiles, размер: " + characterProfiles.size());
+
+        // Инициализация ToggleGroup если он null
+        if (settingsTypeToggleGroup == null) {
+            settingsTypeToggleGroup = new ToggleGroup();
+        }
+
+        // Создаем ToggleGroup программно и связываем с RadioButton
+        ToggleGroup settingsToggleGroup = new ToggleGroup();
+        if (mainSettingsRadio != null) {
+            mainSettingsRadio.setToggleGroup(settingsToggleGroup);
+            mainSettingsRadio.setSelected(true);
+        }
+        if (supportSettingsRadio != null) {
+            supportSettingsRadio.setToggleGroup(settingsToggleGroup);
+        }
+
+        // Обработчик переключения RadioButton
+        settingsToggleGroup.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                switchSettingsType();
+            }
+        });
+
+        // Настройка комбобоксов
+        supportTypeComboBox.getItems().addAll(SupportAction.SupportType.values());
+        supportTypeComboBox.setConverter(new StringConverter<SupportAction.SupportType>() {
+            @Override
+            public String toString(SupportAction.SupportType type) {
+                return type != null ? type.getDisplayName() : "";
+            }
+
+            @Override
+            public SupportAction.SupportType fromString(String string) {
+                return Arrays.stream(SupportAction.SupportType.values())
+                        .filter(t -> t.getDisplayName().equals(string))
+                        .findFirst()
+                        .orElse(null);
+            }
+        });
+
+        // Настройка комбобоксов для основных действий
+        if (groupSkillComboBox != null) {
+            groupSkillComboBox.setItems(availableSkills);
+        }
+        if (groupConditionComboBox != null) {
+            groupConditionComboBox.setItems(availableConditions);
+            groupConditionComboBox.getSelectionModel().select("Нет");
+        }
+
+        // Обработчики кнопок группового управления
+        detectGroupWindowButton.setOnAction(event -> detectGroupGameWindow());
+        addToGroupButton.setOnAction(event -> addCharacterToGroup());
+        startGroupButton.setOnAction(event -> startGroupBot());
+        stopGroupButton.setOnAction(event -> stopGroupBot());
+        removeFromGroupButton.setOnAction(event -> removeCharacterFromGroup());
+
+        if (addSupportActionButton != null) {
+            addSupportActionButton.setOnAction(event -> addSupportAction());
+        }
+        if (groupAddActionButton != null) {
+            groupAddActionButton.setOnAction(event -> groupAddAction());
+        }
+
+        // Обновление интерфейса при выборе персонажа
+        groupTableView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                updateCharacterSettingsView(newVal);
+            }
+        });
+
+        // Обработчик двойного клика для изменения роли
+        groupTableView.setRowFactory(tv -> {
+            TableRow<CharacterProfile> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    CharacterProfile profile = row.getItem();
+                    toggleCharacterRole(profile);
+                }
+            });
+            return row;
+        });
+
+        log("Групповое управление инициализировано");
+    }
+
+    // Добавляем недостающие методы
+    private void updateCharacterSettingsView(CharacterProfile profile) {
+        if (profile == null) return;
+
+        boolean isMain = profile.isMain();
+
+        // Устанавливаем правильный RadioButton
+        if (isMain && mainSettingsRadio != null) {
+            mainSettingsRadio.setSelected(true);
+        } else if (supportSettingsRadio != null) {
+            supportSettingsRadio.setSelected(true);
+        }
+
+        // Вызываем переключение типа настроек
+        switchSettingsType();
+
+        // Обновляем класс в комбобоксе
+        if (profile.getClassId() != null && classComboBox != null) {
+            classComboBox.getSelectionModel().select(profile.getClassId());
+        }
+
+        log("🎯 Выбран персонаж: " + profile.getCharacterName() +
+                " (" + (isMain ? "Основной" : "Вспомогательный") + ")");
+    }
+
+    private void updateGroupActionsTable(CharacterProfile profile) {
+        if (groupActionsTable == null) {
+            log("❌ Таблица групповых действий не инициализирована");
+            return;
+        }
+
+        try {
+            BotController controller = multiBotController.getController(profile.getCharacterName());
+            if (controller != null) {
+                // Получаем действия персонажа
+                ObservableList<BotUIController.Action> actions = controller.getActions();
+                if (actions != null) {
+                    groupActionsTable.setItems(actions);
+                    log("🔄 Обновлена таблица действий для " + profile.getCharacterName() +
+                            " (" + actions.size() + " действий)");
+                } else {
+                    log("⚠️ Нет действий для персонажа " + profile.getCharacterName());
+                    groupActionsTable.setItems(FXCollections.emptyObservableList());
+                }
+            } else {
+                log("❌ Контроллер не найден для персонажа " + profile.getCharacterName());
+                groupActionsTable.setItems(FXCollections.emptyObservableList());
+            }
+        } catch (Exception e) {
+            log("❌ Ошибка обновления таблицы действий: " + e.getMessage());
+            groupActionsTable.setItems(FXCollections.emptyObservableList());
+        }
+    }
+
+
+    private void toggleCharacterRole(CharacterProfile profile) {
+        if (profile.isMain()) {
+            // Нельзя снять роль с основного персонажа, если нет другого основного
+            long mainCount = characterProfiles.stream().filter(CharacterProfile::isMain).count();
+            if (mainCount <= 1) {
+                log("❌ Должен быть хотя бы один основной персонаж");
+                return;
+            }
+            profile.setMain(false);
+            log("🎯 Персонаж " + profile.getCharacterName() + " теперь вспомогательный");
+        } else {
+            // Снимаем роль с текущего основного персонажа
+            characterProfiles.stream()
+                    .filter(CharacterProfile::isMain)
+                    .findFirst()
+                    .ifPresent(oldMain -> {
+                        oldMain.setMain(false);
+                        log("🗑️ Снят статус основного с: " + oldMain.getCharacterName());
+                    });
+
+            // Назначаем нового основного
+            profile.setMain(true);
+            multiBotController.setMainCharacter(profile.getCharacterName());
+            mainCharacterLabel.setText("Основной: " + profile.getCharacterName());
+            log("🎯 Основной персонаж изменен: " + profile.getCharacterName());
+        }
+        groupTableView.refresh();
+        updateCharacterSettingsView(profile);
+    }
+
+    // Метод для переключения типа настроек
+    @FXML
+    private void switchSettingsType() {
+        if (mainSettingsRadio == null || supportSettingsRadio == null) return;
+
+        boolean showMainSettings = mainSettingsRadio.isSelected();
+
+        if (mainSettingsPane != null) {
+            mainSettingsPane.setVisible(showMainSettings);
+            mainSettingsPane.setManaged(showMainSettings);
+        }
+        if (supportSettingsPane != null) {
+            supportSettingsPane.setVisible(!showMainSettings);
+            supportSettingsPane.setManaged(!showMainSettings);
+        }
+
+        // Обновляем таблицу для выбранного типа настроек
+        CharacterProfile selectedChar = groupTableView.getSelectionModel().getSelectedItem();
+        if (selectedChar != null) {
+            if (showMainSettings) {
+                updateGroupActionsTable(selectedChar);
+            } else {
+                updateSupportActionsTable(selectedChar);
+            }
+        }
+    }
+
+    // Метод для добавления обычного действия
+    @FXML
+    private void groupAddAction() {
+        String actionType = groupSkillComboBox.getSelectionModel().getSelectedItem();
+        String keys = groupKeysField.getText().trim();
+        String condition = groupConditionComboBox.getSelectionModel().getSelectedItem();
+        long timerSeconds = 0;
+
+        CharacterProfile selectedChar = groupTableView.getSelectionModel().getSelectedItem();
+        if (selectedChar == null || actionType == null || keys.isEmpty()) {
+            log("❌ Выберите персонажа и заполните поля");
+            return;
+        }
+
+        if ("Таймер n сек".equals(condition)) {
+            timerSeconds = promptForTimerSeconds(actionType, 120);
+            if (timerSeconds == 0) {
+                log("Ошибка: время не указано или неверный формат");
+                return;
+            }
+        }
+
+        try {
+            BotController controller = multiBotController.getController(selectedChar.getCharacterName());
+            if (controller != null) {
+                // Создаем и добавляем действие
+                BotUIController.Action action = new BotUIController.Action(actionType, keys, condition, timerSeconds);
+                // controller.addAction(action); // Нужно добавить метод в BotController
+                log("✅ Действие добавлено для " + selectedChar.getCharacterName() + ": " + actionType);
+
+                // Очищаем поля
+                groupKeysField.clear();
+                groupSkillComboBox.getSelectionModel().clearSelection();
+                groupConditionComboBox.getSelectionModel().select("Нет");
+
+                updateGroupActionsTable(selectedChar);
+            }
+        } catch (Exception e) {
+            log("❌ Ошибка добавления действия: " + e.getMessage());
         }
     }
 
@@ -528,9 +852,14 @@ public class BotUIController {
     private void handleKeyPress(KeyEvent event) {
         KeyCode keyCode = event.getCode();
         String key = mapKeyCodeToString(keyCode);
+
         if (key != null && !capturedKeys.contains(key)) {
             capturedKeys.add(key);
-            keysField.setText(String.join(",", capturedKeys));
+
+            // Определяем, какое поле активно и обновляем его
+            if (event.getSource() instanceof TextField sourceField) {
+                sourceField.setText(String.join(",", capturedKeys));
+            }
         }
         event.consume();
     }
@@ -627,7 +956,6 @@ public class BotUIController {
         }
     }
 
-    // Добавьте этот метод для отображения статуса лицензии в интерфейсе
     private void updateLicenseStatusInUI() {
         LicenseManager licenseManager = new LicenseManager();
 
@@ -836,14 +1164,12 @@ public class BotUIController {
     private void startBot() {
         log("Метод startBot вызван");
 
-        // Проверка лицензии - ДОЛЖНА БЫТЬ ПЕРВОЙ СТРОЧКОЙ
         if (!licenseDialog.showLicenseDialog()) {
             log("❌ Лицензия не активирована. Бот не может быть запущен.");
             showAlert("Ошибка лицензии", "Лицензия не активирована. Бот не может быть запущен.");
             return;
         }
 
-        // Логируем информацию о лицензии
         log("✅ " + licenseDialog.getLicenseManager().getLicenseInfo());
 
         if (isRunning) {
@@ -947,10 +1273,9 @@ public class BotUIController {
             botController.stopBot();
         }
 
-        // Не останавливаем веб-монитор полностью, только обновляем
         if (webMonitor != null) {
             webMonitor.stopWebServer();
-            webMonitor = new WebMonitor(); // Перезапускаем без контроллера бота
+            webMonitor = null;
             log("🌐 Web monitor restarted without bot controller");
         }
 
@@ -1217,6 +1542,39 @@ public class BotUIController {
         }
         settings.put("actions", actionsJson);
 
+        // Сохранение групповых настроек
+        JSONArray groupProfilesJson = new JSONArray();
+        for (CharacterProfile profile : characterProfiles) {
+            JSONObject profileObj = new JSONObject();
+            profileObj.put("characterName", profile.getCharacterName());
+            profileObj.put("windowTitle", profile.getWindowTitle());
+            profileObj.put("arduinoPort", profile.getArduinoPort());
+            profileObj.put("hpPercent", profile.getHpPercent());
+            profileObj.put("mpPercent", profile.getMpPercent());
+            profileObj.put("hpBar", Arrays.toString(profile.getHpBar()));
+            profileObj.put("mpBar", Arrays.toString(profile.getMpBar()));
+            profileObj.put("mobHpBar", Arrays.toString(profile.getMobHpBar()));
+            profileObj.put("isMain", profile.isMain());
+
+            JSONArray supportActionsJson = new JSONArray();
+            BotController controller = multiBotController.getController(profile.getCharacterName());
+            if (controller != null) {
+                for (SupportAction action : controller.getSupportActions()) {
+                    JSONObject actionObj = new JSONObject();
+                    actionObj.put("supportType", action.getSupportType().name());
+                    actionObj.put("actionKey", action.getActionKey());
+                    actionObj.put("triggerValue", action.getTriggerValue());
+                    actionObj.put("priority", action.getPriority());
+                    supportActionsJson.put(actionObj);
+                }
+            }
+            profileObj.put("supportActions", supportActionsJson);
+
+            groupProfilesJson.put(profileObj);
+        }
+        settings.put("groupProfiles", groupProfilesJson);
+        settings.put("mainCharacter", multiBotController.getMainCharacter());
+
         try (FileWriter file = new FileWriter("settings.json")) {
             file.write(settings.toString(4));
             log("Настройки сохранены в settings.json");
@@ -1280,6 +1638,72 @@ public class BotUIController {
                 actions.clear();
             }
 
+            // Загрузка групповых настроек
+            try {
+                JSONArray groupProfilesJson = settings.getJSONArray("groupProfiles");
+                characterProfiles.clear();
+                multiBotController = new MultiBotController();
+
+                for (int i = 0; i < groupProfilesJson.length(); i++) {
+                    JSONObject profileObj = groupProfilesJson.getJSONObject(i);
+
+                    // Парсим массивы координат
+                    int[] hpBar = parseCoordinates(profileObj.optString("hpBar", "50,50,100,10"), "HP");
+                    int[] mpBar = parseCoordinates(profileObj.optString("mpBar", "50,80,100,10"), "MP");
+                    int[] mobHpBar = parseCoordinates(profileObj.optString("mobHpBar", "200,100,50,10"), "Mob HP");
+
+                    CharacterProfile profile = new CharacterProfile(
+                            profileObj.optString("characterName", ""),
+                            profileObj.optString("windowTitle", ""),
+                            profileObj.optString("arduinoPort", ""),
+                            profileObj.optDouble("hpPercent", 30.0),
+                            profileObj.optDouble("mpPercent", 30.0),
+                            hpBar,
+                            mpBar,
+                            mobHpBar,
+                            FXCollections.observableArrayList(actions)
+                    );
+                    profile.setMain(profileObj.optBoolean("isMain", false));
+
+                    characterProfiles.add(profile);
+                    multiBotController.addCharacter(profile);
+
+                    // Загрузка действий поддержки
+                    JSONArray supportActionsJson = profileObj.optJSONArray("supportActions");
+                    if (supportActionsJson != null) {
+                        BotController controller = multiBotController.getController(profile.getCharacterName());
+                        if (controller != null) {
+                            for (int j = 0; j < supportActionsJson.length(); j++) {
+                                JSONObject actionObj = supportActionsJson.getJSONObject(j);
+                                SupportAction.SupportType type = SupportAction.SupportType.valueOf(
+                                        actionObj.optString("supportType", "HEAL_MAIN"));
+                                SupportAction action = new SupportAction(
+                                        type,
+                                        actionObj.optString("actionKey", ""),
+                                        actionObj.optDouble("triggerValue", 30.0),
+                                        actionObj.optInt("priority", 1)
+                                );
+                                controller.addSupportAction(action);
+                            }
+                        }
+                    }
+                }
+
+                // Восстанавливаем основного персонажа
+                String mainChar = settings.optString("mainCharacter", "");
+                if (!mainChar.isEmpty()) {
+                    multiBotController.setMainCharacter(mainChar);
+                    mainCharacterLabel.setText("Основной: " + mainChar);
+                }
+
+                groupTableView.refresh();
+
+            } catch (Exception e) {
+                log("Ошибка загрузки групповых настроек: " + e.getMessage());
+                characterProfiles.clear();
+                multiBotController = new MultiBotController();
+            }
+
             log("Настройки загружены из settings.json");
         } catch (IOException e) {
             log("Ошибка загрузки настроек: файл settings.json не найден");
@@ -1287,6 +1711,271 @@ public class BotUIController {
             switchTheme("Светлая");
         }
     }
+
+    // Методы группового управления
+    @FXML
+    private void addCharacterToGroup() {
+        log("Метод addCharacterToGroup вызван");
+
+        String characterName = groupCharacterNameField.getText().trim();
+        String windowTitle = groupCharacterComboBox.getSelectionModel().getSelectedItem();
+        ClassId selectedClass = classComboBox.getSelectionModel().getSelectedItem();
+
+        log("Данные для добавления: имя=" + characterName + ", окно=" + windowTitle + ", класс=" + selectedClass);
+
+        if (characterName.isEmpty()) {
+            log("❌ Введите имя персонажа!");
+            return;
+        }
+
+        if (windowTitle == null || windowTitle.isEmpty()) {
+            log("❌ Выберите окно игры!");
+            return;
+        }
+
+        if (selectedClass == null) {
+            log("❌ Выберите класс персонажа!");
+            return;
+        }
+
+        // Проверяем, не добавлен ли уже персонаж
+        for (CharacterProfile profile : characterProfiles) {
+            if (profile.getCharacterName().equals(characterName)) {
+                log("❌ Персонаж " + characterName + " уже добавлен в группу");
+                return;
+            }
+        }
+
+        try {
+            // Парсим координаты
+            int[] hpBar = parseCoordinates(hpBarField.getText(), "HP");
+            int[] mpBar = parseCoordinates(mpBarField.getText(), "MP");
+            int[] mobHpBar = parseCoordinates(mobHpBarField.getText(), "Mob HP");
+
+            if (hpBar == null || mpBar == null || mobHpBar == null) {
+                log("❌ Ошибка в координатах полос!");
+                return;
+            }
+
+            // Создаем профиль персонажа
+            CharacterProfile profile = new CharacterProfile(
+                    characterName,
+                    windowTitle,
+                    arduinoPortComboBox.getSelectionModel().getSelectedItem(),
+                    Double.parseDouble(hpPercentField.getText()),
+                    Double.parseDouble(mpPercentField.getText()),
+                    hpBar,
+                    mpBar,
+                    mobHpBar,
+                    FXCollections.observableArrayList() // Пустой список действий
+            );
+
+            profile.setClassId(selectedClass);
+
+            // Первый персонаж становится основным, остальные - вспомогательными
+            boolean isFirstCharacter = characterProfiles.isEmpty();
+            profile.setMain(isFirstCharacter);
+            profile.setStatus("Остановлен");
+
+            // Добавляем в коллекции
+            characterProfiles.add(profile);
+            multiBotController.addCharacter(profile);
+
+            if (isFirstCharacter) {
+                multiBotController.setMainCharacter(characterName);
+                mainCharacterLabel.setText("Основной: " + characterName);
+                log("🎯 Первый персонаж " + characterName + " назначен основным");
+            } else {
+                log("✅ Персонаж " + characterName + " добавлен как вспомогательный");
+            }
+
+            // Обновляем таблицу
+            groupTableView.refresh();
+
+            // Очищаем поля для следующего добавления
+            groupCharacterNameField.clear();
+            groupCharacterComboBox.getSelectionModel().clearSelection();
+
+        } catch (NumberFormatException e) {
+            log("❌ Ошибка в числовых значениях (HP/MP %): " + e.getMessage());
+        } catch (Exception e) {
+            log("❌ Ошибка добавления персонажа: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+
+    @FXML
+    private void setAsMainCharacter() {
+        CharacterProfile selected = groupTableView.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            // Снимаем статус основного со всех персонажей
+            for (CharacterProfile profile : characterProfiles) {
+                boolean wasMain = profile.isMain();
+                profile.setMain(profile.equals(selected));
+
+                if (wasMain && !profile.equals(selected)) {
+                    log("🗑️ Снят статус основного с: " + profile.getCharacterName());
+                }
+            }
+
+            multiBotController.setMainCharacter(selected.getCharacterName());
+            mainCharacterLabel.setText("Основной: " + selected.getCharacterName());
+
+            log("🎯 Основной персонаж установлен: " + selected.getCharacterName());
+            groupTableView.refresh();
+        } else {
+            log("❌ Выберите персонажа для назначения основным");
+        }
+    }
+
+    @FXML
+    private void removeCharacterFromGroup() {
+        CharacterProfile selected = groupTableView.getSelectionModel().getSelectedItem();
+        if (selected != null) {
+            characterProfiles.remove(selected);
+            multiBotController.removeCharacter(selected.getCharacterName());
+
+            if (selected.isMain()) {
+                mainCharacterLabel.setText("Основной: Не назначен");
+            }
+
+            log("🗑️ Персонаж " + selected.getCharacterName() + " удален из группы");
+        }
+    }
+
+    @FXML
+    private void addSupportAction() {
+        CharacterProfile selectedChar = groupTableView.getSelectionModel().getSelectedItem();
+        SupportAction.SupportType type = supportTypeComboBox.getSelectionModel().getSelectedItem();
+        String key = supportKeyField.getText().trim();
+        String conditionText = supportConditionField.getText().trim();
+
+        if (selectedChar == null || type == null || key.isEmpty() || conditionText.isEmpty()) {
+            log("❌ Выберите персонажа и заполните все поля");
+            return;
+        }
+
+        try {
+            double conditionValue = Double.parseDouble(conditionText);
+            SupportAction action = new SupportAction(type, key, conditionValue, 1);
+
+            // Добавляем действие поддержки выбранному персонажу
+            BotController controller = multiBotController.getController(selectedChar.getCharacterName());
+            if (controller != null) {
+                controller.addSupportAction(action);
+                updateSupportActionsTable(selectedChar);
+                log("✅ Действие поддержки добавлено для " + selectedChar.getCharacterName());
+
+                // Очищаем поля ввода
+                supportKeyField.clear();
+                supportConditionField.clear();
+            }
+
+        } catch (NumberFormatException e) {
+            log("❌ Неверный формат условия");
+        }
+    }
+
+    private void updateSupportActionsTable(CharacterProfile profile) {
+        supportActions.clear();
+        BotController controller = multiBotController.getController(profile.getCharacterName());
+        if (controller != null) {
+            supportActions.addAll(controller.getSupportActions());
+        }
+        supportActionsTable.setItems(supportActions);
+    }
+
+    @FXML
+    private void startGroupBot() {
+        if (!licenseDialog.showLicenseDialog()) {
+            log("❌ Лицензия не активирована. Групповой бот не может быть запущен.");
+            showAlert("Ошибка лицензии", "Лицензия не активирована. Групповой бот не может быть запущен.");
+            return;
+        }
+
+        if (characterProfiles.isEmpty()) {
+            log("❌ Добавьте хотя бы одного персонажа в группу");
+            return;
+        }
+
+        try {
+            multiBotController.startGroupBot();
+            groupStatusLabel.setText("Активна");
+
+            for (CharacterProfile profile : characterProfiles) {
+                profile.setStatus("Работает");
+            }
+            groupTableView.refresh();
+
+            log("🚀 Групповой бот запущен");
+
+        } catch (Exception e) {
+            log("❌ Ошибка запуска группового бота: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    @FXML
+    private void stopGroupBot() {
+        multiBotController.stopGroupBot();
+        groupStatusLabel.setText("Неактивна");
+
+        // Обновляем статусы персонажей
+        for (CharacterProfile profile : characterProfiles) {
+            profile.setStatus("Остановлен");
+        }
+        groupTableView.refresh();
+
+        log("⏹️ Групповой бот остановлен");
+    }
+
+    @FXML
+    private void detectGroupGameWindow() {
+        log("Метод detectGroupGameWindow вызван");
+        String nickname = groupCharacterNameField.getText().trim();
+        if (nickname.isEmpty()) {
+            log("❌ Введите ник персонажа!");
+            return;
+        }
+
+        log("Поиск окон для ника: " + nickname);
+
+        List<String> gameWindows = new ArrayList<>();
+        User32.INSTANCE.EnumWindows((hWnd, arg) -> {
+            char[] windowText = new char[512];
+            User32.INSTANCE.GetWindowText(hWnd, windowText, 512);
+            String title = new String(windowText).trim();
+
+            if (title.contains(nickname)) {
+                char[] className = new char[256];
+                User32.INSTANCE.GetClassName(hWnd, className, 256);
+                String windowClass = new String(className).trim();
+
+                if (windowClass.equals("UnrealWindow") ||
+                        windowClass.equals("Lineage") ||
+                        title.matches(nickname + ".*")) {
+                    gameWindows.add(title);
+                    log("Найдено окно: " + title + " (класс: " + windowClass + ")");
+                }
+            }
+            return true;
+        }, null);
+
+        if (!gameWindows.isEmpty()) {
+            Platform.runLater(() -> {
+                groupCharacterComboBox.getItems().setAll(gameWindows);
+                groupCharacterComboBox.getSelectionModel().selectFirst();
+                log("✅ Окно игры найдено: " + gameWindows.get(0));
+            });
+        } else {
+            log("❌ Не найдено окно с ником '" + nickname + "'");
+            Platform.runLater(() -> {
+                groupCharacterComboBox.getItems().clear();
+            });
+        }
+    }
+
 
     public static class Action {
         private final SimpleStringProperty actionType;

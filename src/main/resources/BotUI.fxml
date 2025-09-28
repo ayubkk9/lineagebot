@@ -3,14 +3,17 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.text.*?>
+<?import javafx.scene.control.cell.PropertyValueFactory?>
+<?import javafx.geometry.Insets?>
 
 <?import java.net.URL?>
-<AnchorPane fx:id="mainPane" styleClass="main-pane" prefWidth="800" prefHeight="600" xmlns="http://javafx.com/javafx/17"
+<AnchorPane fx:id="mainPane" styleClass="main-pane" prefWidth="1000" prefHeight="800" xmlns="http://javafx.com/javafx/17"
             xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.lineagebot.BotUIController">
     <stylesheets>
         <URL value="@styles.css"/>
     </stylesheets>
-    <!-- Добавляем панель лицензии вверху -->
+
+    <!-- Лицензионная панель -->
     <HBox spacing="10" alignment="CENTER_RIGHT" styleClass="license-pane" AnchorPane.leftAnchor="10"
           AnchorPane.rightAnchor="10" AnchorPane.topAnchor="10">
         <Button fx:id="licenseInfoButton" text="Инфо о лицензии" styleClass="license-button"
@@ -21,9 +24,12 @@
 
     <TabPane fx:id="tabPane" AnchorPane.leftAnchor="0" AnchorPane.rightAnchor="0" AnchorPane.topAnchor="50"
              AnchorPane.bottomAnchor="0">
+
+        <!-- Основные настройки -->
         <Tab text="Основные настройки" closable="false">
             <ScrollPane fitToWidth="true" fitToHeight="true">
                 <VBox spacing="10" alignment="TOP_CENTER" maxWidth="Infinity" maxHeight="Infinity">
+
                     <!-- Панель выбора темы -->
                     <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT" VBox.vgrow="NEVER">
                         <Label text="Тема:" styleClass="label"/>
@@ -120,10 +126,168 @@
                 </VBox>
             </ScrollPane>
         </Tab>
+
+        <!-- Логи -->
         <Tab text="Логи" closable="false">
             <VBox fx:id="logPane" spacing="10" alignment="TOP_CENTER" maxWidth="Infinity" maxHeight="Infinity">
                 <TextArea fx:id="logArea" prefHeight="150" editable="false" VBox.vgrow="ALWAYS"/>
             </VBox>
         </Tab>
+
+        <!-- Групповое управление -->
+        <Tab text="Групповое управление" closable="false">
+            <ScrollPane fitToWidth="true" fitToHeight="true">
+                <VBox spacing="15" alignment="TOP_CENTER" maxWidth="Infinity">
+                    <padding>
+                        <Insets top="10" right="10" bottom="10" left="10"/>
+                    </padding>
+
+                    <!-- Заголовок -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT">
+                        <Label text="Групповое управление персонажами" styleClass="label" style="-fx-font-weight: bold; -fx-font-size: 14px;"/>
+                    </HBox>
+
+                    <!-- Панель добавления персонажей -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT">
+                        <Label text="Ник персонажа:" styleClass="label"/>
+                        <TextField fx:id="groupCharacterNameField" prefWidth="120"/>
+                        <Button fx:id="detectGroupWindowButton" text="Найти" styleClass="button" onAction="#detectGroupGameWindow"/>
+                        <ComboBox fx:id="groupCharacterComboBox" prefWidth="250"/>
+                        <Button fx:id="addToGroupButton" text="Добавить в группу" styleClass="button" onAction="#addCharacterToGroup"/>
+                    </HBox>
+
+                    <!-- Таблица персонажей группы -->
+                    <TableView fx:id="groupTableView" prefHeight="200">
+                        <columns>
+                            <TableColumn text="Имя персонажа" prefWidth="150">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="characterName" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="Окно игры" prefWidth="200">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="windowTitle" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="Класс" prefWidth="120">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="className" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="Роль" prefWidth="100">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="main" />
+                                </cellValueFactory>
+                            </TableColumn>
+                            <TableColumn text="Статус" prefWidth="100">
+                                <cellValueFactory>
+                                    <PropertyValueFactory property="status" />
+                                </cellValueFactory>
+                            </TableColumn>
+                        </columns>
+                    </TableView>
+
+                    <!-- Управление группой -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT">
+                        <Button fx:id="startGroupButton" text="Запустить группу" styleClass="button" onAction="#startGroupBot"/>
+                        <Button fx:id="stopGroupButton" text="Остановить группу" styleClass="button" onAction="#stopGroupBot"/>
+                        <Button fx:id="removeFromGroupButton" text="Удалить из группы" styleClass="button" onAction="#removeCharacterFromGroup"/>
+                    </HBox>
+
+                    <!-- Настройки для выбранного персонажа -->
+                    <VBox spacing="10" styleClass="skill-pane">
+                        <Label text="Настройки для выбранного персонажа" styleClass="label" style="-fx-font-weight: bold;"/>
+
+                        <!-- Переключатель между основными настройками и поддержкой -->
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label text="Тип настроек:" styleClass="label"/>
+                            <RadioButton text="Основные скиллы" fx:id="mainSettingsRadio" selected="true" onAction="#switchSettingsType"/>
+                            <RadioButton text="Поддержка" fx:id="supportSettingsRadio" onAction="#switchSettingsType"/>
+                        </HBox>
+
+                        <!-- Основные настройки (видимы для основного персонажа) -->
+                        <VBox fx:id="mainSettingsPane" spacing="10" visible="true">
+                            <HBox spacing="10" alignment="CENTER_LEFT">
+                                <Label text="Скилл/действие:" styleClass="label"/>
+                                <ComboBox fx:id="groupSkillComboBox" prefWidth="150"/>
+                                <Label text="Клавиши:" styleClass="label"/>
+                                <TextField fx:id="groupKeysField" prefWidth="100"/>
+                                <Label text="Условие:" styleClass="label"/>
+                                <ComboBox fx:id="groupConditionComboBox" prefWidth="100"/>
+                                <Button fx:id="groupAddActionButton" text="Добавить" styleClass="button" onAction="#groupAddAction"/>
+                            </HBox>
+
+                            <TableView fx:id="groupActionsTable" prefHeight="150">
+                                <columns>
+                                    <TableColumn text="Действие" prefWidth="150">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="actionType" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="Клавиши" prefWidth="100">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="keys" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="Условие" prefWidth="100">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="condition" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                </columns>
+                            </TableView>
+                        </VBox>
+
+                        <!-- Настройки поддержки (видимы для вспомогательных персонажей) -->
+                        <VBox fx:id="supportSettingsPane" spacing="10" visible="false">
+                            <HBox spacing="10" alignment="CENTER_LEFT">
+                                <Label text="Тип поддержки:" styleClass="label"/>
+                                <ComboBox fx:id="supportTypeComboBox" prefWidth="150"/>
+                                <Label text="Клавиша:" styleClass="label"/>
+                                <TextField fx:id="supportKeyField" prefWidth="80"/>
+                                <Label text="Условие (%):" styleClass="label"/>
+                                <TextField fx:id="supportConditionField" prefWidth="60"/>
+                                <Button fx:id="addSupportActionButton" text="Добавить действие" styleClass="button" onAction="#addSupportAction"/>
+                            </HBox>
+
+                            <TableView fx:id="supportActionsTable" prefHeight="150">
+                                <columns>
+                                    <TableColumn text="Тип поддержки" prefWidth="150">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="supportType" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="Клавиша" prefWidth="80">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="actionKey" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="Условие" prefWidth="80">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="triggerValue" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                    <TableColumn text="Приоритет" prefWidth="70">
+                                        <cellValueFactory>
+                                            <PropertyValueFactory property="priority" />
+                                        </cellValueFactory>
+                                    </TableColumn>
+                                </columns>
+                            </TableView>
+                        </VBox>
+                    </VBox>
+
+                    <!-- Статус группы -->
+                    <HBox spacing="10" styleClass="skill-pane" alignment="CENTER_LEFT">
+                        <Label text="Статус группы:" styleClass="label"/>
+                        <Label fx:id="groupStatusLabel" text="Неактивна" styleClass="label"/>
+                        <Label text="Основной персонаж:" styleClass="label"/>
+                        <Label fx:id="mainCharacterLabel" text="Не назначен" styleClass="label"/>
+                    </HBox>
+
+                </VBox>
+            </ScrollPane>
+        </Tab>
+
     </TabPane>
 </AnchorPane>

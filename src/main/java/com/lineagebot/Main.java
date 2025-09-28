@@ -11,9 +11,9 @@ public class Main extends Application {
     @Override
     public void start(Stage primaryStage) throws IOException {
         FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("/BotUI.fxml"));
-        Scene scene = new Scene(fxmlLoader.load(), 900, 1100);
+        Scene scene = new Scene(fxmlLoader.load(), 1000, 1200);
         primaryStage.setScene(scene);
-        primaryStage.setTitle("Lineage II Bot");
+        primaryStage.setTitle("EternalFarm");
         primaryStage.setResizable(false);
         BotUIController controller = fxmlLoader.getController();
         controller.setPrimaryStage(primaryStage);

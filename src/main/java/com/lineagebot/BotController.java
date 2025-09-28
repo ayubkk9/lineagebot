@@ -3,6 +3,7 @@ package com.lineagebot;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
@@ -12,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -34,6 +36,13 @@ public class BotController {
     private final Object arduinoLock = new Object();
     private final ReentrantReadWriteLock screenLock = new ReentrantReadWriteLock();
 
+    // Групповое управление - новые поля
+    private final ObservableList<SupportAction> supportActions = FXCollections.observableArrayList();
+    private final Map<SupportAction, Long> lastSupportActionTimes = new ConcurrentHashMap<>();
+    private String supportedCharacter; // Имя персонажа, которого поддерживаем
+    private BotStats supportedStats; // Статистика поддерживаемого персонажа
+    private Thread supportMonitorThread;
+
     public BotController(String arduinoPort, double hpPercent, double mpPercent, String characterWindow,
                          ObservableList<BotUIController.Action> actions, ObservableList<Skill> skills,
                          int[] hpBar, int[] mpBar, int[] mobHpBar) {
@@ -53,10 +62,9 @@ public class BotController {
     }
 
     public String getDebugInfo() {
-        Object isRunning = null;
         return String.format(
-                "BotController: running=%b, isRunning=%b, botStats=%s",
-                running, null, botStats.toString()
+                "BotController: running=%b, botStats=%s, supportedCharacter=%s",
+                running, botStats.toString(), supportedCharacter
         );
     }
 
@@ -103,6 +111,12 @@ public class BotController {
         }
 
         running = true;
+
+        // Запускаем мониторинг поддержки, если есть поддерживаемый персонаж
+        if (supportedCharacter != null) {
+            startSupportMonitoring();
+        }
+
         new Thread(() -> {
             while (running) {
                 try {
@@ -287,10 +301,22 @@ public class BotController {
             arduino.close();
         }
         lastActionTimes.clear();
+        clearSupportTimers();
+
+        // Останавливаем мониторинг поддержки
+        if (supportMonitorThread != null && supportMonitorThread.isAlive()) {
+            supportMonitorThread.interrupt();
+            try {
+                supportMonitorThread.join(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        supportedCharacter = null;
+        supportedStats = null;
         log("Бот остановлен");
     }
-
-
 
     private void updateStats() {
         long currentUptime = System.currentTimeMillis() - startTime;
@@ -315,7 +341,6 @@ public class BotController {
             log("❌ Ошибка обновления статистики: " + e.getMessage());
         }
     }
-
 
     public StringProperty logProperty() {
         return log;
@@ -364,7 +389,6 @@ public class BotController {
     }
 
     public void forceStatsUpdate() {
-        //boolean isRunning = false;
         if (!running) {
             // Если бот не запущен, устанавливаем значения по умолчанию
             botStats.setStatus("STOPPED");
@@ -376,12 +400,6 @@ public class BotController {
             return;
         }
 
-        // Объявляем переменные вне блока try
-        boolean wasAlive = botStats.isAlive();
-        boolean isNowAlive = false;
-        double hpPercent = 0;
-        double mpPercent = 0;
-
         try {
             // Убедимся, что статус RUNNING
             botStats.setStatus("RUNNING");
@@ -391,11 +409,11 @@ public class BotController {
             double mpLevel = readMpLevel();
 
             // Обновляем статистику
-            botStats.setCurrentHp(hpPercent);
-            botStats.setCurrentMp(mpPercent);
+            botStats.setCurrentHp(hpLevel * 100);
+            botStats.setCurrentMp(mpLevel * 100);
 
             // Проверяем, жив ли персонаж (HP > 10%)
-            boolean isAlive = false;
+            boolean isAlive = hpLevel > 0.1;
             botStats.setAlive(isAlive);
 
             // Обновляем время работы
@@ -403,11 +421,186 @@ public class BotController {
                 botStats.setUptime(System.currentTimeMillis() - startTime);
             }
 
-            System.out.println("Stats updated - HP: " + hpPercent + "%, MP: " + mpPercent + "%, Alive: " + isAlive);
+            System.out.println("Stats updated - HP: " + (hpLevel * 100) + "%, MP: " + (mpLevel * 100) + "%, Alive: " + isAlive);
 
         } catch (Exception e) {
             System.out.println("Error in forceStatsUpdate: " + e.getMessage());
             // Не устанавливаем статус ERROR, сохраняем предыдущие значения
         }
     }
+
+    // Групповое управление - новые методы
+
+    public void setSupportedCharacter(String characterName, BotStats stats) {
+        this.supportedCharacter = characterName;
+        this.supportedStats = stats;
+
+        // Перезапускаем мониторинг поддержки при изменении поддерживаемого персонажа
+        if (supportMonitorThread != null && supportMonitorThread.isAlive()) {
+            supportMonitorThread.interrupt();
+        }
+
+        if (running && supportedCharacter != null) {
+            startSupportMonitoring();
+        }
     }
+
+    private void startSupportMonitoring() {
+        if (supportMonitorThread != null && supportMonitorThread.isAlive()) {
+            supportMonitorThread.interrupt();
+        }
+
+        supportMonitorThread = new Thread(() -> {
+            while (running && supportedCharacter != null && supportedStats != null) {
+                try {
+                    checkSupportActions();
+                    Thread.sleep(1000); // Проверяем каждую секунду
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception e) {
+                    log("❌ Ошибка в мониторинге поддержки: " + e.getMessage());
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        });
+        supportMonitorThread.setDaemon(true);
+        supportMonitorThread.start();
+
+        log("🎯 Мониторинг поддержки запущен для " + supportedCharacter);
+    }
+
+    public void checkSupportActions() {
+        if (supportedStats == null || !running || supportedCharacter == null) return;
+
+        try {
+            for (SupportAction action : supportActions) {
+                boolean shouldExecute = false;
+                long currentTime = System.currentTimeMillis();
+                long lastActionTime = getLastSupportActionTime(action);
+
+                switch (action.getSupportType()) {
+                    case HEAL_MAIN:
+                        shouldExecute = supportedStats.getCurrentHp() < action.getTriggerValue() &&
+                                (currentTime - lastActionTime) > 3000; // Не чаще чем раз в 3 секунды
+                        break;
+                    case MANA_TRANSFER:
+                        shouldExecute = supportedStats.getCurrentMp() < action.getTriggerValue() &&
+                                (currentTime - lastActionTime) > 5000; // Не чаще чем раз в 5 секунд
+                        break;
+                    case BUFF_MAIN:
+                        // Баффы по таймеру (triggerValue в секундах)
+                        long buffCooldown = (long) (action.getTriggerValue() * 1000);
+                        shouldExecute = (currentTime - lastActionTime) > buffCooldown;
+                        break;
+                    case CURE_MAIN:
+                        // Лечение дебаффов - проверяем по времени
+                        shouldExecute = (currentTime - lastActionTime) > 8000; // Каждые 8 секунд
+                        break;
+                    case TARGET_ASSIST:
+                        // Помощь в атаке - проверяем, что основной в бою
+                        shouldExecute = supportedStats.getStatus().equals("RUNNING") &&
+                                supportedStats.getCurrentHp() > 20.0 && // Только если у основного достаточно HP
+                                (currentTime - lastActionTime) > 2000; // Каждые 2 секунды
+                        break;
+                    case EMERGENCY_RETREAT:
+                        // Экстренное отступление при критическом HP основного
+                        shouldExecute = supportedStats.getCurrentHp() < 15.0 &&
+                                (currentTime - lastActionTime) > 10000; // Не чаще чем раз в 10 секунд
+                        break;
+                }
+
+                if (shouldExecute) {
+                    executeSupportAction(action);
+                    updateLastSupportActionTime(action);
+
+                    // Добавляем небольшую задержку между действиями поддержки
+                    try {
+                        Thread.sleep(200 + random.nextInt(200));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log("❌ Ошибка проверки действий поддержки: " + e.getMessage());
+        }
+    }
+
+    private void executeSupportAction(SupportAction action) {
+        synchronized (arduinoLock) {
+            String[] keys = action.getActionKey().split(",");
+            for (int i = 0; i < keys.length; i++) {
+                String key = keys[i].trim();
+                arduino.sendCommand("PRESS_KEY:" + key);
+
+                String actionType = action.getSupportType().getDisplayName();
+                log("🎯 Поддержка " + supportedCharacter + ": " + actionType + " - " + key);
+
+                // Добавляем задержку между последовательными нажатиями клавиш
+                if (i < keys.length - 1) {
+                    try {
+                        Thread.sleep(150 + random.nextInt(100));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private long getLastSupportActionTime(SupportAction action) {
+        synchronized (lastSupportActionTimes) {
+            return lastSupportActionTimes.getOrDefault(action, 0L);
+        }
+    }
+
+    private void updateLastSupportActionTime(SupportAction action) {
+        synchronized (lastSupportActionTimes) {
+            lastSupportActionTimes.put(action, System.currentTimeMillis());
+        }
+    }
+
+    private void clearSupportTimers() {
+        synchronized (lastSupportActionTimes) {
+            lastSupportActionTimes.clear();
+        }
+    }
+
+    public void addSupportAction(SupportAction action) {
+        supportActions.add(action);
+        log("✅ Добавлено действие поддержки: " + action.getSupportType().getDisplayName());
+    }
+
+    public ObservableList<SupportAction> getSupportActions() {
+        return supportActions;
+    }
+
+    public void clearSupportActions() {
+        supportActions.clear();
+        clearSupportTimers();
+        log("🗑️ Все действия поддержки очищены");
+    }
+
+    public String getSupportedCharacter() {
+        return supportedCharacter;
+    }
+
+    public boolean isSupporting() {
+        return supportedCharacter != null && supportedStats != null;
+    }
+
+    public ObservableList<BotUIController.Action> getActions() {
+        return actions;
+    }
+}
+
+
+
